@@ -1,10 +1,13 @@
 mod create_log_methods;
 mod custom_levels;
-mod log_entry;
+mod default_levels;
+pub mod log_entry;
+mod logger_builder;
 pub mod transports;
 
 use custom_levels::CustomLevels;
 use log_entry::LogEntry;
+use logger_builder::LoggerBuilder;
 use std::{collections::HashMap, sync::Arc};
 use transports::{
     console::{ConsoleTransport, ConsoleTransportOptions},
@@ -25,16 +28,6 @@ pub struct LoggerOptions {
     pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
 }
 
-fn default_levels() -> HashMap<String, u8> {
-    let mut levels = HashMap::new();
-    levels.insert("error".to_string(), 0);
-    levels.insert("warn".to_string(), 1);
-    levels.insert("info".to_string(), 2);
-    levels.insert("debug".to_string(), 3);
-    levels.insert("trace".to_string(), 4);
-    levels
-}
-
 impl Default for LoggerOptions {
     fn default() -> Self {
         let console_options = ConsoleTransportOptions {
@@ -47,7 +40,7 @@ impl Default for LoggerOptions {
         let console_transport = Arc::new(ConsoleTransport::new(Some(console_options)));
 
         LoggerOptions {
-            levels: Some(default_levels()),
+            levels: Some(default_levels::default_levels()),
             level: Some("info".to_string()),
             transports: Some(vec![console_transport]),
             format: None,
@@ -124,6 +117,10 @@ impl Logger {
                 transport.log(&formatted_message, &entry.level);
             }
         }
+    }
+
+    pub fn builder() -> LoggerBuilder {
+        LoggerBuilder::new()
     }
 }
 
