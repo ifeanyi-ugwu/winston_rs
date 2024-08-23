@@ -1,6 +1,6 @@
 use super::{Transport, TransportStreamOptions};
 //use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::sync::Mutex;
 
@@ -33,7 +33,11 @@ impl FileTransport {
             .filename
             .clone()
             .expect("File path is required for FileTransport");
-        let file = File::create(file_path).expect("Failed to create log file");
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)
+            .expect("Failed to open log file");
         let writer = BufWriter::new(file);
 
         FileTransport {
