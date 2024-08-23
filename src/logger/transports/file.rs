@@ -46,6 +46,10 @@ impl FileTransport {
         }
     }
 
+    pub fn builder() -> FileTransportOptionsBuilder {
+        FileTransportOptionsBuilder::new()
+    }
+
     /*unused
     pub fn flush(&self) -> std::io::Result<()> {
            let mut file = self.file.lock().unwrap();
@@ -83,5 +87,59 @@ impl Transport for FileTransport {
             .base
             .as_ref()
             .and_then(|base| base.format.as_ref())
+    }
+}
+
+pub struct FileTransportOptionsBuilder {
+    base: Option<TransportStreamOptions>,
+    filename: Option<String>,
+}
+
+impl FileTransportOptionsBuilder {
+    pub fn new() -> Self {
+        Self {
+            base: None,
+            filename: None,
+        }
+    }
+
+    pub fn level(mut self, level: String) -> Self {
+        if let Some(mut base) = self.base.take() {
+            base.level = Some(level);
+            self.base = Some(base);
+        } else {
+            self.base = Some(TransportStreamOptions {
+                level: Some(level),
+                format: None,
+            });
+        }
+        self
+    }
+
+    pub fn format(mut self, format: String) -> Self {
+        if let Some(mut base) = self.base.take() {
+            base.format = Some(format);
+            self.base = Some(base);
+        } else {
+            self.base = Some(TransportStreamOptions {
+                level: None,
+                format: Some(format),
+            });
+        }
+        self
+    }
+
+    pub fn filename(mut self, filename: String) -> Self {
+        self.filename = Some(filename);
+        self
+    }
+
+    pub fn build(self) -> FileTransport {
+        let options = FileTransportOptions {
+            base: self.base,
+            filename: self.filename,
+            // Set other fields as needed
+        };
+        FileTransport::new(options)
     }
 }
