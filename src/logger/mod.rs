@@ -1,4 +1,4 @@
-mod create_log_methods;
+pub mod create_logger;
 mod custom_levels;
 mod default_levels;
 pub mod log_entry;
@@ -48,7 +48,6 @@ impl Default for LoggerOptions {
     }
 }
 
-#[allow(dead_code)]
 impl Logger {
     pub fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
@@ -138,7 +137,3 @@ macro_rules! create_log_methods {
 }
 
 create_log_methods!(info, warn, error, debug, trace);
-
-pub fn create_logger(options: Option<LoggerOptions>) -> Logger {
-    Logger::new(options)
-}
