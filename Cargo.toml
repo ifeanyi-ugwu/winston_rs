@@ -2,11 +2,13 @@
 name = "winston"
 version = "0.1.0"
 edition = "2021"
-description = ""
+description = "winston for rust"
 license = "MIT"
 documentation = "https://docs.rs/winston"
 repository = "https://github.com/ifeanyi-ugwu/winston_rs"
 authors = ["ifeanyi ugwu"]
+keywords = ["winston", "logger"]
+categories = ["development-tools::debugging"]
 
 
 [dependencies]
