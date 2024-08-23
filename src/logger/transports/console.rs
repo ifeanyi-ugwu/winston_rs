@@ -21,6 +21,10 @@ impl ConsoleTransport {
 
         ConsoleTransport { options }
     }
+
+    pub fn builder() -> ConsoleTransportBuilder {
+        ConsoleTransportBuilder::new()
+    }
 }
 
 impl Transport for ConsoleTransport {
@@ -40,5 +44,82 @@ impl Transport for ConsoleTransport {
             .base
             .as_ref()
             .and_then(|base| base.format.as_ref())
+    }
+}
+
+pub struct ConsoleTransportBuilder {
+    base: Option<TransportStreamOptions>,
+    //console_warn_levels: Option<Vec<String>>,
+    //stderr_levels: Option<Vec<String>>,
+    //debug_stdout: Option<bool>,
+    // eol: Option<String>,
+}
+
+impl ConsoleTransportBuilder {
+    pub fn new() -> Self {
+        Self {
+            base: None,
+            //console_warn_levels: None,
+            // stderr_levels: None,
+            // debug_stdout: None,
+            // eol: None,
+        }
+    }
+
+    pub fn level(mut self, level: String) -> Self {
+        if let Some(mut base) = self.base.take() {
+            base.level = Some(level);
+            self.base = Some(base);
+        } else {
+            self.base = Some(TransportStreamOptions {
+                level: Some(level),
+                format: None,
+            });
+        }
+        self
+    }
+
+    pub fn format(mut self, format: String) -> Self {
+        if let Some(mut base) = self.base.take() {
+            base.format = Some(format);
+            self.base = Some(base);
+        } else {
+            self.base = Some(TransportStreamOptions {
+                level: None,
+                format: Some(format),
+            });
+        }
+        self
+    }
+    /* pub fn console_warn_levels(mut self, levels: Vec<String>) -> Self {
+        self.console_warn_levels = Some(levels);
+        self
+    }
+
+    pub fn stderr_levels(mut self, levels: Vec<String>) -> Self {
+        self.stderr_levels = Some(levels);
+        self
+    }
+
+    pub fn debug_stdout(mut self, debug: bool) -> Self {
+        self.debug_stdout = Some(debug);
+        self
+    }
+
+    pub fn eol(mut self, eol: String) -> Self {
+        self.eol = Some(eol);
+        self
+    }
+    */
+
+    pub fn build(self) -> ConsoleTransport {
+        let options = ConsoleTransportOptions {
+            base: self.base,
+            //console_warn_levels: self.console_warn_levels,
+            //stderr_levels: self.stderr_levels,
+            //debug_stdout: self.debug_stdout,
+            //eol: self.eol,
+        };
+        ConsoleTransport::new(Some(options))
     }
 }
