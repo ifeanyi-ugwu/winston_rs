@@ -1,5 +1,6 @@
 use super::{Transport, TransportStreamOptions};
 //use std::collections::HashMap;
+use logform::BoxedLogFormat as LogFormat;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::sync::Mutex;
@@ -82,7 +83,7 @@ impl Transport for FileTransport {
             .and_then(|base| base.level.as_ref())
     }
 
-    fn get_format(&self) -> Option<&String> {
+    fn get_format(&self) -> Option<&LogFormat> {
         self.options
             .base
             .as_ref()
@@ -114,7 +115,7 @@ impl FileTransportOptionsBuilder {
         self
     }
 
-    pub fn format(mut self, format: String) -> Self {
+    pub fn format(mut self, format: LogFormat) -> Self {
         self.base
             .get_or_insert_with(|| TransportStreamOptions {
                 level: None,

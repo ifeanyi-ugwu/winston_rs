@@ -1,4 +1,5 @@
 use super::{Transport, TransportStreamOptions};
+use logform::BoxedLogFormat as LogFormat;
 
 pub struct ConsoleTransportOptions {
     pub base: Option<TransportStreamOptions>,
@@ -39,7 +40,7 @@ impl Transport for ConsoleTransport {
             .and_then(|base| base.level.as_ref())
     }
 
-    fn get_format(&self) -> Option<&String> {
+    fn get_format(&self) -> Option<&LogFormat> {
         self.options
             .base
             .as_ref()
@@ -77,7 +78,7 @@ impl ConsoleTransportBuilder {
         self
     }
 
-    pub fn format(mut self, format: String) -> Self {
+    pub fn format(mut self, format: LogFormat) -> Self {
         self.base
             .get_or_insert_with(|| TransportStreamOptions {
                 level: None,

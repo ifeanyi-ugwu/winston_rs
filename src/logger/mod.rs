@@ -6,7 +6,8 @@ mod logger_builder;
 pub mod transports;
 
 use custom_levels::CustomLevels;
-use log_entry::LogEntry;
+use log_entry::{convert_log_entry, LogEntry};
+use logform::{json, BoxedLogFormat as LogFormat};
 use logger_builder::LoggerBuilder;
 use std::{collections::HashMap, sync::Arc};
 use transports::{
@@ -16,14 +17,14 @@ use transports::{
 
 pub struct Logger {
     levels: CustomLevels,
-    format: Option<String>,
+    format: LogFormat,
     level: String,
     transports: Vec<Arc<dyn Transport + Send + Sync>>,
 }
 
 pub struct LoggerOptions {
     pub levels: Option<HashMap<String, u8>>,
-    pub format: Option<String>,
+    pub format: Option<LogFormat>,
     pub level: Option<String>,
     pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
 }
@@ -43,7 +44,7 @@ impl Default for LoggerOptions {
             levels: Some(default_levels::default_levels()),
             level: Some("info".to_string()),
             transports: Some(vec![console_transport]),
-            format: None,
+            format: Some(json()),
         }
     }
 }
@@ -54,13 +55,13 @@ impl Logger {
         let levels = CustomLevels::new(options.levels.unwrap_or_default());
         let level = options.level.unwrap_or_default();
         let transports = options.transports.unwrap_or_default();
-        let format = options.format;
+        let format = options.format.unwrap_or_else(|| json());
 
         let logger = Logger {
             levels,
-            transports,
-            level,
             format,
+            level,
+            transports,
         };
 
         logger
@@ -94,19 +95,18 @@ impl Logger {
         self.levels.get_severity(level)
     }
 
-    fn format_message(&self, entry: &LogEntry, transport_format: Option<&String>) -> String {
-        let format = transport_format.or(self.format.as_ref());
-        match format {
-            Some(fmt) => fmt
-                .replace("{message}", &entry.message)
-                .replace("{level}", &entry.level),
-            None => format!(
-                "{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                entry.level,
-                entry.message
-            ),
+    fn format_message(&self, entry: &LogEntry, transport_format: Option<&LogFormat>) -> String {
+        let mut converted_entry = convert_log_entry(entry);
+
+        // Apply the transport-specific format if provided
+        if let Some(format) = transport_format {
+            format.transform(&mut converted_entry);
+        } else {
+            // Otherwise, use the default logger format
+            self.format.transform(&mut converted_entry);
         }
+
+        converted_entry.message
     }
 
     pub fn log(&self, entry: LogEntry) {

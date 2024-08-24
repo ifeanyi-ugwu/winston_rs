@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub struct LogEntry {
     pub level: String,
     pub message: String,
-    options: HashMap<String, Value>,
+    pub meta: HashMap<String, Value>,
 }
 
 impl LogEntry {
@@ -18,7 +18,7 @@ impl LogEntry {
 pub struct LogEntryBuilder {
     level: String,
     message: String,
-    options: HashMap<String, Value>,
+    meta: HashMap<String, Value>,
 }
 
 impl LogEntryBuilder {
@@ -26,12 +26,12 @@ impl LogEntryBuilder {
         LogEntryBuilder {
             level: level.to_string(),
             message: message.to_string(),
-            options: HashMap::new(),
+            meta: HashMap::new(),
         }
     }
 
     pub fn option(mut self, key: &str, value: Value) -> Self {
-        self.options.insert(key.to_string(), value);
+        self.meta.insert(key.to_string(), value);
         self
     }
 
@@ -39,7 +39,15 @@ impl LogEntryBuilder {
         LogEntry {
             level: self.level,
             message: self.message,
-            options: self.options,
+            meta: self.meta,
         }
+    }
+}
+
+pub fn convert_log_entry(entry: &LogEntry) -> logform::LogInfo {
+    logform::LogInfo {
+        level: entry.level.clone(),
+        message: entry.message.clone(),
+        meta: entry.meta.clone(),
     }
 }
