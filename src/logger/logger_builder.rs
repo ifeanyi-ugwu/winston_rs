@@ -19,8 +19,10 @@ impl LoggerBuilder {
         }
     }
 
-    pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
-        self.levels = Some(levels);
+    pub fn add_level<T: Into<String>>(mut self, level: T, value: u8) -> Self {
+        self.levels
+            .get_or_insert_with(HashMap::new)
+            .insert(level.into(), value);
         self
     }
 
@@ -29,13 +31,15 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn level(mut self, level: String) -> Self {
-        self.level = Some(level);
+    pub fn level<T: Into<String>>(mut self, level: T) -> Self {
+        self.level = Some(level.into());
         self
     }
 
-    pub fn transports(mut self, transports: Vec<Arc<dyn Transport + Send + Sync>>) -> Self {
-        self.transports = Some(transports);
+    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+        self.transports
+            .get_or_insert_with(Vec::new)
+            .push(Arc::new(transport));
         self
     }
 
