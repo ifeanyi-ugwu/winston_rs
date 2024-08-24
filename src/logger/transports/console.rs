@@ -66,29 +66,24 @@ impl ConsoleTransportBuilder {
         }
     }
 
-    pub fn level(mut self, level: String) -> Self {
-        if let Some(mut base) = self.base.take() {
-            base.level = Some(level);
-            self.base = Some(base);
-        } else {
-            self.base = Some(TransportStreamOptions {
-                level: Some(level),
+    pub fn level<T: Into<String>>(mut self, level: T) -> Self {
+        let level = level.into();
+        self.base
+            .get_or_insert_with(|| TransportStreamOptions {
+                level: None,
                 format: None,
-            });
-        }
+            })
+            .level = Some(level);
         self
     }
 
     pub fn format(mut self, format: String) -> Self {
-        if let Some(mut base) = self.base.take() {
-            base.format = Some(format);
-            self.base = Some(base);
-        } else {
-            self.base = Some(TransportStreamOptions {
+        self.base
+            .get_or_insert_with(|| TransportStreamOptions {
                 level: None,
-                format: Some(format),
-            });
-        }
+                format: None,
+            })
+            .format = Some(format);
         self
     }
     /* pub fn console_warn_levels(mut self, levels: Vec<String>) -> Self {
