@@ -110,9 +110,16 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogEntry) {
-        if self.is_level_enabled(&entry.level) {
-            for transport in &self.transports {
-                let formatted_message = self.format_message(&entry, transport.get_format());
+        if entry.message.is_empty() && entry.meta.is_empty() {
+            return;
+        }
+
+        if !self.is_level_enabled(&entry.level) {
+            return;
+        }
+
+        for transport in &self.transports {
+            if let Some(formatted_message) = self.format_message(&entry, transport.get_format()) {
                 transport.log(&formatted_message, &entry.level);
             }
         }
