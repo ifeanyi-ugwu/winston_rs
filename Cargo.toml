@@ -13,6 +13,6 @@ categories = ["development-tools::debugging"]
 
 [dependencies]
 chrono = "0.4.38"
-logform = "0.1.2"
+logform = "0.1.3"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"

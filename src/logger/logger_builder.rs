@@ -1,10 +1,10 @@
 use super::{transports::Transport, Logger, LoggerOptions};
-use logform::BoxedLogFormat as LogFormat;
+use logform::Format;
 use std::{collections::HashMap, sync::Arc};
 
 pub struct LoggerBuilder {
     levels: Option<HashMap<String, u8>>,
-    format: Option<LogFormat>,
+    format: Option<Format>,
     level: Option<String>,
     transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
 }
@@ -26,7 +26,7 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn format(mut self, format: LogFormat) -> Self {
+    pub fn format(mut self, format: Format) -> Self {
         self.format = Some(format);
         self
     }

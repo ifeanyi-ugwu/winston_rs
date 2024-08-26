@@ -7,7 +7,7 @@ pub mod transports;
 
 use custom_levels::CustomLevels;
 use log_entry::{convert_log_entry, LogEntry};
-use logform::{json, BoxedLogFormat as LogFormat};
+use logform::{json, Format};
 use logger_builder::LoggerBuilder;
 use std::{collections::HashMap, sync::Arc};
 use transports::{
@@ -17,14 +17,14 @@ use transports::{
 
 pub struct Logger {
     levels: CustomLevels,
-    format: LogFormat,
+    format: Format,
     level: String,
     transports: Vec<Arc<dyn Transport + Send + Sync>>,
 }
 
 pub struct LoggerOptions {
     pub levels: Option<HashMap<String, u8>>,
-    pub format: Option<LogFormat>,
+    pub format: Option<Format>,
     pub level: Option<String>,
     pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
 }
@@ -95,18 +95,22 @@ impl Logger {
         self.levels.get_severity(level)
     }
 
-    fn format_message(&self, entry: &LogEntry, transport_format: Option<&LogFormat>) -> String {
-        let mut converted_entry = convert_log_entry(entry);
+    fn format_message(
+        &self,
+        entry: &LogEntry,
+        transport_format: Option<&Format>,
+    ) -> Option<String> {
+        let converted_entry = convert_log_entry(entry);
 
         // Apply the transport-specific format if provided
-        if let Some(format) = transport_format {
-            format.transform(&mut converted_entry);
+        let formatted_entry = if let Some(format) = transport_format {
+            format.transform(converted_entry.clone(), None)
         } else {
             // Otherwise, use the default logger format
-            self.format.transform(&mut converted_entry);
-        }
+            self.format.transform(converted_entry.clone(), None)
+        };
 
-        converted_entry.message
+        formatted_entry.map(|entry| entry.message)
     }
 
     pub fn log(&self, entry: LogEntry) {
