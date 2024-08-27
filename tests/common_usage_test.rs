@@ -1,4 +1,4 @@
-use logform::{align, colorize, combine, create_format, json, simple, timestamp};
+use logform::{align, colorize, combine, json, simple, timestamp, Format};
 use winston::{create_logger, transports, LogEntry, Logger};
 
 #[test]
@@ -7,7 +7,7 @@ fn test_default_logger() {
     default_logger.info("Testing default logger");
     // Add assertions or checks if needed
 
-    let custom_logger = Logger::builder().format(create_format(|_, _| None)).build();
+    let custom_logger = Logger::builder().format(Format::new(|_, _| None)).build();
     custom_logger.info("hi there")
 }
 
