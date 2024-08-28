@@ -27,6 +27,22 @@ impl LoggerOptions {
         self
     }
 
+    pub fn transports<T: Transport + Send + Sync + 'static>(mut self, transports: Vec<T>) -> Self {
+        // Initialize the vector if it doesn't exist, and then clear it to reset
+        if self.transports.is_none() {
+            self.transports = Some(Vec::new());
+        } else {
+            self.transports.as_mut().unwrap().clear();
+        }
+
+        // Wrap each transport in Arc and add to the internal transports vector
+        for transport in transports {
+            self.transports.as_mut().unwrap().push(Arc::new(transport));
+        }
+
+        self
+    }
+
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
         if self.transports.is_none() {
             self.transports = Some(Vec::new());
