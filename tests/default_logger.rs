@@ -8,12 +8,12 @@ use winston::{
 fn test_default_logger() {
     log_info!("This use the default configuration");
 
-    configure(LoggerOptions {
-        level: Some("debug".to_string()),
-        transports: Some(vec![Arc::new(Console::new(None))]),
-        format: Some(format::combine(vec![format::timestamp(), format::json()])),
-        ..Default::default()
-    });
+    configure(
+        LoggerOptions::new()
+            .level("debug")
+            .transports(vec![Console::new(None)])
+            .format(format::combine(vec![format::timestamp(), format::json()])),
+    );
 
     log_info!("This will use the new configuration");
 }
