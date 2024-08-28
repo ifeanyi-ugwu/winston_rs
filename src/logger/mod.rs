@@ -33,6 +33,35 @@ pub struct LoggerOptions {
     pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
 }
 
+impl LoggerOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn level(mut self, level: &str) -> Self {
+        self.level = Some(level.to_string());
+        self
+    }
+
+    pub fn format(mut self, format: Format) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+        if self.transports.is_none() {
+            self.transports = Some(Vec::new());
+        }
+        self.transports.as_mut().unwrap().push(Arc::new(transport));
+        self
+    }
+
+    pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
+        self.levels = Some(levels);
+        self
+    }
+}
+
 impl Default for LoggerOptions {
     fn default() -> Self {
         let console_options = ConsoleTransportOptions {
