@@ -3,6 +3,7 @@ mod custom_levels;
 mod default_levels;
 pub mod log_entry;
 mod logger_builder;
+mod logger_options;
 pub mod transports;
 
 use custom_levels::CustomLevels;
@@ -10,76 +11,15 @@ use lazy_static::lazy_static;
 use log_entry::{convert_log_entry, LogEntry};
 use logform::{json, Format};
 use logger_builder::LoggerBuilder;
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-use transports::{
-    console::{ConsoleTransport, ConsoleTransportOptions},
-    Transport, TransportStreamOptions,
-};
+pub use logger_options::LoggerOptions;
+use std::sync::{Arc, Mutex};
+use transports::Transport;
 
 pub struct Logger {
     levels: CustomLevels,
     format: Format,
     level: String,
     transports: Vec<Arc<dyn Transport + Send + Sync>>,
-}
-
-pub struct LoggerOptions {
-    pub levels: Option<HashMap<String, u8>>,
-    pub format: Option<Format>,
-    pub level: Option<String>,
-    pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
-}
-
-impl LoggerOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn level(mut self, level: &str) -> Self {
-        self.level = Some(level.to_string());
-        self
-    }
-
-    pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
-        self
-    }
-
-    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
-        if self.transports.is_none() {
-            self.transports = Some(Vec::new());
-        }
-        self.transports.as_mut().unwrap().push(Arc::new(transport));
-        self
-    }
-
-    pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
-        self.levels = Some(levels);
-        self
-    }
-}
-
-impl Default for LoggerOptions {
-    fn default() -> Self {
-        let console_options = ConsoleTransportOptions {
-            base: Some(TransportStreamOptions {
-                level: Some("info".to_string()),
-                format: None,
-            }),
-        };
-
-        let console_transport = Arc::new(ConsoleTransport::new(Some(console_options)));
-
-        LoggerOptions {
-            levels: Some(default_levels::default_levels()),
-            level: Some("info".to_string()),
-            transports: Some(vec![console_transport]),
-            format: Some(json()),
-        }
-    }
 }
 
 lazy_static! {
