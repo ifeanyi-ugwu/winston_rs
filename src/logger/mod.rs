@@ -6,10 +6,14 @@ mod logger_builder;
 pub mod transports;
 
 use custom_levels::CustomLevels;
+use lazy_static::lazy_static;
 use log_entry::{convert_log_entry, LogEntry};
 use logform::{json, Format};
 use logger_builder::LoggerBuilder;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use transports::{
     console::{ConsoleTransport, ConsoleTransportOptions},
     Transport, TransportStreamOptions,
@@ -47,6 +51,10 @@ impl Default for LoggerOptions {
             format: Some(json()),
         }
     }
+}
+
+lazy_static! {
+    static ref DEFAULT_LOGGER: Mutex<Logger> = Mutex::new(Logger::new(None));
 }
 
 impl Logger {
@@ -132,6 +140,25 @@ impl Logger {
     pub fn builder() -> LoggerBuilder {
         LoggerBuilder::new()
     }
+
+    pub fn configure(&mut self, options: LoggerOptions) {
+        if let Some(levels) = options.levels {
+            self.levels = CustomLevels::new(levels);
+        }
+        if let Some(format) = options.format {
+            self.format = format;
+        }
+        if let Some(level) = options.level {
+            self.level = level;
+        }
+        if let Some(transports) = options.transports {
+            self.transports = transports;
+        }
+    }
+
+    pub fn default() -> &'static Mutex<Logger> {
+        &DEFAULT_LOGGER
+    }
 }
 
 macro_rules! create_log_methods {
@@ -148,3 +175,39 @@ macro_rules! create_log_methods {
 }
 
 create_log_methods!(info, warn, error, debug, trace);
+
+// Global logging functions
+pub fn log(level: &str, message: &str) {
+    DEFAULT_LOGGER
+        .lock()
+        .unwrap()
+        .log(LogEntry::builder(level, message).build());
+}
+
+pub fn configure(options: LoggerOptions) {
+    DEFAULT_LOGGER.lock().unwrap().configure(options);
+}
+
+// Convenience macros for global logging
+#[macro_export]
+macro_rules! log_info {
+    ($($arg:tt)*) => {
+        $crate::log("info", &format!($($arg)*));
+    }
+}
+
+#[macro_export]
+macro_rules! log_warn {
+    ($($arg:tt)*) => {
+        $crate::log("warn", &format!($($arg)*));
+    }
+}
+
+#[macro_export]
+macro_rules! log_error {
+    ($($arg:tt)*) => {
+        $crate::log("error", &format!($($arg)*));
+    }
+}
+
+// ... Add more macros for other log levels
