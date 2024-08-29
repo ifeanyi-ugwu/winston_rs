@@ -4,19 +4,29 @@ use winston::transports::Transport;
 
 pub struct DelayedTransport {
     delay: Duration,
+    done_sender: crossbeam_channel::Sender<()>,
 }
 
 impl DelayedTransport {
-    pub fn new(delay: Duration) -> Self {
-        DelayedTransport { delay }
+    pub fn new(delay: Duration, done_sender: crossbeam_channel::Sender<()>) -> Self {
+        DelayedTransport { delay, done_sender }
     }
 }
 
 impl Transport for DelayedTransport {
-    fn log(&self, _message: &str, _level: &str) {
-        // Simulate a delay
-        thread::sleep(self.delay);
-        println!("DelayedTransport logging: {:?}", _message);
+    fn log(&self, message: &str, level: &str) {
+        let delay: Duration = self.delay;
+        let done_sender = self.done_sender.clone();
+        let message = message.to_string();
+        let level = level.to_string();
+
+        thread::spawn(move || {
+            thread::sleep(delay);
+            println!("Delayed log: {} - {}", level, message);
+            done_sender
+                .send(())
+                .expect("Failed to send completion signal");
+        });
     }
 
     fn get_level(&self) -> Option<&String> {

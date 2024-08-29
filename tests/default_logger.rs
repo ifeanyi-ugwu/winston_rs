@@ -50,11 +50,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crossbeam_channel::unbounded;
+
 #[test]
 fn test_logger_non_blocking() {
+    // Create a channel to signal when the delayed transport has finished
+    let (done_sender, done_receiver) = unbounded();
+
     let logger = Logger::builder()
         .add_transport(Console::new(None))
-        .add_transport(common::DelayedTransport::new(Duration::from_millis(500))).format(format::pretty_print().with_option("colorize", "true"))
+        .add_transport(common::DelayedTransport::new(Duration::from_millis(500), done_sender.clone())).format(format::pretty_print().with_option("colorize", "true"))
         .build();
 
     // Measure time taken for logging
@@ -83,4 +88,9 @@ fn test_logger_non_blocking() {
         simulated_work_duration, 
         elapsed
     );
+
+        // Wait for the delayed transport to finish
+    done_receiver.recv().expect("Failed to receive completion signal");
+
+    println!("Logging completed asynchronously after {:?}", start_time.elapsed());
 }
