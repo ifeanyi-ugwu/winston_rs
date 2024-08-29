@@ -13,6 +13,18 @@ impl LogEntry {
     pub fn builder(level: &str, message: &str) -> LogEntryBuilder {
         LogEntryBuilder::new(level, message)
     }
+
+    pub fn flush() -> Self {
+        LogEntry {
+            level: "FLUSH".to_string(),
+            message: String::new(),
+            meta: HashMap::new(),
+        }
+    }
+
+    pub fn is_flush(&self) -> bool {
+        self.level == "FLUSH"
+    }
 }
 
 pub struct LogEntryBuilder {
