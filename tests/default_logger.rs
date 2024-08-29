@@ -60,8 +60,10 @@ fn test_logger_non_blocking() {
     // Measure time taken for logging
     let start_time = Instant::now();
 
-    // Perform logging
-    logger.info("Starting logging test...");
+    // Log multiple messages
+    for i in 0..10 {
+        logger.info(&format!("Test message {}", i));
+    }
 
     // Simulate a non-blocking task with a shorter duration
     let simulated_work_duration = Duration::from_millis(100);
@@ -72,7 +74,7 @@ fn test_logger_non_blocking() {
     // Tolerance for expected execution time (adds some margin for variance in execution)
     let tolerance = Duration::from_millis(50);
 
-    println!("Expected elapsed time: {:?} Elapsed time: {:?}",simulated_work_duration, elapsed);
+    println!("Expected elapsed time: {:?}, Actual Elapsed time: {:?}",simulated_work_duration+tolerance, elapsed);
 
     // Assert that the elapsed time is within the expected range
     assert!(
