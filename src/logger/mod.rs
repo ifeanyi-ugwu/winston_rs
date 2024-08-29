@@ -4,15 +4,19 @@ mod default_levels;
 pub mod log_entry;
 mod logger_builder;
 mod logger_options;
+mod logger_worker;
 pub mod transports;
 
+use crossbeam_channel::{bounded, Sender as CBSender};
 use custom_levels::CustomLevels;
 use lazy_static::lazy_static;
 use log_entry::{convert_log_entry, LogEntry};
 use logform::{json, Format};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
+use logger_worker::LoggerWorker;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use transports::Transport;
 
 pub struct Logger {
@@ -34,14 +38,26 @@ impl Logger {
         let transports = options.transports.unwrap_or_default();
         let format = options.format.unwrap_or_else(|| json());
 
-        let logger = Logger {
+        let (sender, receiver) = bounded(1000);
+
+        let worker = LoggerWorker {
+            levels: levels.clone(),
+            format: format.clone(),
+            level: level.clone(),
+            transports: transports.clone(),
+            log_receiver: receiver,
+        };
+
+        let worker_thread = thread::spawn(move || worker.run());
+
+        Logger {
             levels,
             format,
             level,
             transports,
-        };
-
-        logger
+            log_sender: sender,
+            worker_thread: Some(worker_thread),
+        }
     }
 
     pub fn is_level_enabled(&self, level: &str) -> bool {
@@ -91,19 +107,26 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogEntry) {
-        if entry.message.is_empty() && entry.meta.is_empty() {
-            return;
-        }
+        // Send the log entry to the worker thread
+        let _ = self.log_sender.send(entry);
+        /*if entry.message.is_empty() && entry.meta.is_empty() {
+             return;
+         }
 
-        if !self.is_level_enabled(&entry.level) {
-            return;
-        }
+         if !self.is_level_enabled(&entry.level) {
+             return;
+         }
 
         for transport in &self.transports {
-            if let Some(formatted_message) = self.format_message(&entry, transport.get_format()) {
-                transport.log(&formatted_message, &entry.level);
-            }
-        }
+             if let Some(formatted_message) = self.format_message(&entry, transport.get_format()) {
+                 transport.log(&formatted_message, &entry.level);
+             }
+         }*/
+    }
+
+    pub fn flush(&self) {
+        // Send a special "flush" message
+        let _ = self.log_sender.send(LogEntry::flush());
     }
 
     pub fn builder() -> LoggerBuilder {
@@ -127,6 +150,15 @@ impl Logger {
 
     pub fn default() -> &'static Mutex<Logger> {
         &DEFAULT_LOGGER
+    }
+}
+
+impl Drop for Logger {
+    fn drop(&mut self) {
+        self.flush();
+        if let Some(thread) = self.worker_thread.take() {
+            thread.join().unwrap();
+        }
     }
 }
 
