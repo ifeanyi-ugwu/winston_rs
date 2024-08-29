@@ -54,7 +54,7 @@ use std::{
 fn test_logger_non_blocking() {
     let logger = Logger::builder()
         .add_transport(Console::new(None))
-        .add_transport(common::DelayedTransport::new(Duration::from_millis(5000))).format(format::pretty_print().with_option("colorize", "true"))
+        .add_transport(common::DelayedTransport::new(Duration::from_millis(500))).format(format::pretty_print().with_option("colorize", "true"))
         .build();
 
     // Measure time taken for logging
@@ -72,9 +72,11 @@ fn test_logger_non_blocking() {
     // Tolerance for expected execution time (adds some margin for variance in execution)
     let tolerance = Duration::from_millis(50);
 
+    println!("Expected elapsed time: {:?} Elapsed time: {:?}",simulated_work_duration, elapsed);
+
     // Assert that the elapsed time is within the expected range
     assert!(
-        elapsed >= simulated_work_duration + tolerance,
+        elapsed <= simulated_work_duration + tolerance,
         "Logging operation seems to block the caller thread! Expected elapsed time: {:?}, but got: {:?}",
         simulated_work_duration, 
         elapsed
