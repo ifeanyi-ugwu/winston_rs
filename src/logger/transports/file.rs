@@ -1,8 +1,12 @@
-use super::{Transport, TransportStreamOptions};
+use super::{Queryable, Transport, TransportStreamOptions};
+use crate::logger::log_query::LogQuery;
+use crate::LogEntry;
 //use std::collections::HashMap;
 use logform::Format;
+use std::any::Any;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Mutex;
 
 pub struct FileTransportOptions {
@@ -59,6 +63,60 @@ impl FileTransport {
     */
 }
 
+impl FileTransport {
+    fn parse_log_entry(&self, line: &str) -> Option<LogEntry> {
+        let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
+
+        let level = parsed["level"].as_str()?;
+        let message = parsed["message"].as_str()?;
+        let meta = parsed
+            .as_object()?
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<HashMap<_, _>>(); // Collect all metadata
+
+        Some(LogEntry {
+            level: level.to_string(),
+            message: message.to_string(),
+            meta,
+        })
+    }
+
+    fn matches_query(&self, entry: &LogEntry, query: &LogQuery) -> bool {
+        if let Some(start_time) = query.from {
+            if let Some(entry_time) = entry.timestamp() {
+                if entry_time < start_time {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(end_time) = query.until {
+            if let Some(entry_time) = entry.timestamp() {
+                if entry_time > end_time {
+                    return false;
+                }
+            }
+        }
+
+        if !query.levels.is_empty() && !query.levels.contains(&entry.level) {
+            return false;
+        }
+
+        if let Some(search_term) = &query.search_term {
+            if !entry
+                .message
+                .to_lowercase()
+                .contains(&search_term.to_lowercase())
+            {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
 impl Transport for FileTransport {
     /*fn log(&self, message: &str, _level: &str) {
         let mut file = self.file.lock().unwrap();
@@ -88,6 +146,35 @@ impl Transport for FileTransport {
             .base
             .as_ref()
             .and_then(|base| base.format.as_ref())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_queryable(&self) -> Option<&dyn Queryable> {
+        Some(self)
+    }
+}
+
+impl Queryable for FileTransport {
+    fn query(&self, query: &LogQuery) -> Result<Vec<LogEntry>, String> {
+        let file = File::open(self.options.filename.as_ref().unwrap())
+            .map_err(|e| format!("Failed to open log file: {}", e))?;
+        let reader = BufReader::new(file);
+
+        let mut results = Vec::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
+            if let Some(entry) = self.parse_log_entry(&line) {
+                if self.matches_query(&entry, query) {
+                    results.push(entry);
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
 

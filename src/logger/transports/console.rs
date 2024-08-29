@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use super::{Transport, TransportStreamOptions};
 use logform::Format;
 
@@ -45,6 +47,10 @@ impl Transport for ConsoleTransport {
             .base
             .as_ref()
             .and_then(|base| base.format.as_ref())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

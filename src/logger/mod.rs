@@ -2,6 +2,7 @@ pub mod create_logger;
 mod custom_levels;
 mod default_levels;
 pub mod log_entry;
+pub mod log_query;
 mod logger_builder;
 mod logger_options;
 mod logger_worker;
@@ -10,7 +11,8 @@ pub mod transports;
 use crossbeam_channel::{bounded, Sender as CBSender};
 use custom_levels::CustomLevels;
 use lazy_static::lazy_static;
-use log_entry::{convert_log_entry, LogEntry};
+use log_entry::LogEntry;
+pub use log_query::LogQuery;
 use logform::{json, Format};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
@@ -85,41 +87,10 @@ impl Logger {
     fn get_level_severity(&self, level: &str) -> Option<u8> {
         self.levels.get_severity(level)
     }
-    /*
-        fn format_message(
-            &self,
-            entry: &LogEntry,
-            transport_format: Option<&Format>,
-        ) -> Option<String> {
-            let converted_entry = convert_log_entry(entry);
 
-            // Apply the transport-specific format if provided
-            let formatted_entry = if let Some(format) = transport_format {
-                format.transform(converted_entry.clone(), None)
-            } else {
-                // Otherwise, use the default logger format
-                self.format.transform(converted_entry.clone(), None)
-            };
-
-            formatted_entry.map(|entry| entry.message)
-        }
-    */
     pub fn log(&self, entry: LogEntry) {
         // Send the log entry to the worker thread
         let _ = self.log_sender.send(entry);
-        /*if entry.message.is_empty() && entry.meta.is_empty() {
-             return;
-         }
-
-         if !self.is_level_enabled(&entry.level) {
-             return;
-         }
-
-        for transport in &self.transports {
-             if let Some(formatted_message) = self.format_message(&entry, transport.get_format()) {
-                 transport.log(&formatted_message, &entry.level);
-             }
-         }*/
     }
 
     pub fn flush(&self) {
@@ -144,6 +115,21 @@ impl Logger {
         if let Some(transports) = options.transports {
             self.transports = transports;
         }
+    }
+
+    pub fn query(&self, options: &LogQuery) -> Result<Vec<LogEntry>, String> {
+        let mut results = Vec::new();
+
+        for transport in &self.transports {
+            if let Some(queryable_transport) = transport.as_queryable() {
+                match queryable_transport.query(options) {
+                    Ok(mut logs) => results.append(&mut logs),
+                    Err(e) => return Err(format!("Query failed: {}", e)),
+                }
+            }
+        }
+
+        Ok(results)
     }
 
     pub fn default() -> &'static Mutex<Logger> {
