@@ -24,10 +24,8 @@ pub struct Logger {
     format: Format,
     level: String,
     transports: Vec<Arc<dyn Transport + Send + Sync>>,
-}
-
-lazy_static! {
-    static ref DEFAULT_LOGGER: Mutex<Logger> = Mutex::new(Logger::new(None));
+    log_sender: CBSender<LogEntry>,
+    worker_thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Logger {
@@ -87,25 +85,25 @@ impl Logger {
     fn get_level_severity(&self, level: &str) -> Option<u8> {
         self.levels.get_severity(level)
     }
+    /*
+        fn format_message(
+            &self,
+            entry: &LogEntry,
+            transport_format: Option<&Format>,
+        ) -> Option<String> {
+            let converted_entry = convert_log_entry(entry);
 
-    fn format_message(
-        &self,
-        entry: &LogEntry,
-        transport_format: Option<&Format>,
-    ) -> Option<String> {
-        let converted_entry = convert_log_entry(entry);
+            // Apply the transport-specific format if provided
+            let formatted_entry = if let Some(format) = transport_format {
+                format.transform(converted_entry.clone(), None)
+            } else {
+                // Otherwise, use the default logger format
+                self.format.transform(converted_entry.clone(), None)
+            };
 
-        // Apply the transport-specific format if provided
-        let formatted_entry = if let Some(format) = transport_format {
-            format.transform(converted_entry.clone(), None)
-        } else {
-            // Otherwise, use the default logger format
-            self.format.transform(converted_entry.clone(), None)
-        };
-
-        formatted_entry.map(|entry| entry.message)
-    }
-
+            formatted_entry.map(|entry| entry.message)
+        }
+    */
     pub fn log(&self, entry: LogEntry) {
         // Send the log entry to the worker thread
         let _ = self.log_sender.send(entry);
@@ -176,6 +174,11 @@ macro_rules! create_log_methods {
 }
 
 create_log_methods!(info, warn, error, debug, trace);
+
+// Global logger implementation
+lazy_static! {
+    static ref DEFAULT_LOGGER: Mutex<Logger> = Mutex::new(Logger::new(None));
+}
 
 // Global logging functions
 pub fn log(level: &str, message: &str) {
