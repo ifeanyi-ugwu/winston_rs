@@ -7,7 +7,7 @@ license = "MIT"
 documentation = "https://docs.rs/winston"
 repository = "https://github.com/ifeanyi-ugwu/winston_rs"
 authors = ["ifeanyi ugwu"]
-keywords = ["winston", "logger"]
+keywords = ["winston", "logger", "logging"]
 categories = ["development-tools::debugging"]
 
 
