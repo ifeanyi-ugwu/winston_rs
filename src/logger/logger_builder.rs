@@ -51,6 +51,8 @@ impl LoggerBuilder {
             transports: self
                 .transports
                 .or_else(|| LoggerOptions::default().transports),
+            max_batch_size: Some(100),
+            flush_interval: Some(std::time::Duration::from_secs(1)),
         };
 
         Logger::new(Some(options))

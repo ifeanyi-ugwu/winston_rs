@@ -2,7 +2,10 @@ use super::{custom_levels::CustomLevels, log_entry::convert_log_entry, transport
 use crate::LogEntry;
 use crossbeam_channel::Receiver as CBReceiver;
 use logform::Format;
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 pub struct LoggerWorker {
     pub levels: CustomLevels,
@@ -10,21 +13,62 @@ pub struct LoggerWorker {
     pub level: String,
     pub transports: Vec<Arc<dyn Transport + Send + Sync>>,
     pub log_receiver: CBReceiver<LogEntry>,
+    buffer: Vec<LogEntry>,
+    max_batch_size: usize,
+    flush_interval: Duration,
 }
 
 impl LoggerWorker {
-    pub fn run(&self) {
+    pub fn new(
+        levels: CustomLevels,
+        format: Format,
+        level: String,
+        transports: Vec<Arc<dyn Transport + Send + Sync>>,
+        log_receiver: CBReceiver<LogEntry>,
+        max_batch_size: usize,
+        flush_interval: Duration,
+    ) -> Self {
+        LoggerWorker {
+            levels,
+            format,
+            level,
+            transports,
+            log_receiver,
+            buffer: Vec::with_capacity(max_batch_size),
+            max_batch_size,
+            flush_interval,
+        }
+    }
+
+    pub fn run(&mut self) {
+        let mut last_flush_time = Instant::now();
+
         while let Ok(entry) = self.log_receiver.recv() {
             if entry.is_flush() {
-                // Process any remaining entries
-                while let Ok(entry) = self.log_receiver.try_recv() {
-                    self.process_log_entry(entry);
-                }
+                // Flush any remaining entries before stopping
+                self.flush_buffer();
                 break;
             }
+
             if self.is_level_enabled(&entry.level) {
-                self.process_log_entry(entry);
+                self.buffer.push(entry);
             }
+
+            if self.buffer.len() >= self.max_batch_size
+                || last_flush_time.elapsed() >= self.flush_interval
+            {
+                self.flush_buffer();
+                last_flush_time = Instant::now();
+            }
+        }
+    }
+
+    fn flush_buffer(&mut self) {
+        // Drain the buffer into a temporary vector
+        let entries_to_flush = self.buffer.drain(..).collect::<Vec<_>>();
+
+        for entry in entries_to_flush {
+            self.process_log_entry(entry);
         }
     }
 

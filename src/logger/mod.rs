@@ -19,6 +19,7 @@ pub use logger_options::LoggerOptions;
 use logger_worker::LoggerWorker;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 use transports::Transport;
 
 pub struct Logger {
@@ -40,13 +41,18 @@ impl Logger {
 
         let (sender, receiver) = bounded(1000);
 
-        let worker = LoggerWorker {
-            levels: levels.clone(),
-            format: format.clone(),
-            level: level.clone(),
-            transports: transports.clone(),
-            log_receiver: receiver,
-        };
+        let max_batch_size = options.max_batch_size.unwrap_or(100);
+        let flush_interval = options.flush_interval.unwrap_or(Duration::from_secs(1));
+
+        let mut worker = LoggerWorker::new(
+            levels.clone(),
+            format.clone(),
+            level.clone(),
+            transports.clone(),
+            receiver,
+            max_batch_size,
+            flush_interval,
+        );
 
         let worker_thread = thread::spawn(move || worker.run());
 
