@@ -1,60 +1,47 @@
 use super::{transports::Transport, Logger, LoggerOptions};
 use logform::Format;
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc, time::Duration};
 
 pub struct LoggerBuilder {
-    levels: Option<HashMap<String, u8>>,
-    format: Option<Format>,
-    level: Option<String>,
-    transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
+    options: LoggerOptions,
 }
 
 impl LoggerBuilder {
     pub fn new() -> Self {
         LoggerBuilder {
-            levels: None,
-            format: None,
-            level: None,
-            transports: None,
+            options: LoggerOptions::default(),
         }
     }
 
-    pub fn add_level<T: Into<String>>(mut self, level: T, value: u8) -> Self {
-        self.levels
-            .get_or_insert_with(HashMap::new)
-            .insert(level.into(), value);
+    pub fn level<T: Into<String>>(mut self, level: T) -> Self {
+        self.options.level = Some(level.into());
         self
     }
 
     pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
-        self
-    }
-
-    pub fn level<T: Into<String>>(mut self, level: T) -> Self {
-        self.level = Some(level.into());
+        self.options.format = Some(format);
         self
     }
 
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
-        self.transports
+        self.options
+            .transports
             .get_or_insert_with(Vec::new)
             .push(Arc::new(transport));
         self
     }
 
-    pub fn build(self) -> Logger {
-        let options = LoggerOptions {
-            levels: self.levels.or_else(|| LoggerOptions::default().levels),
-            format: self.format.or_else(|| LoggerOptions::default().format),
-            level: self.level.or_else(|| LoggerOptions::default().level),
-            transports: self
-                .transports
-                .or_else(|| LoggerOptions::default().transports),
-            max_batch_size: Some(100),
-            flush_interval: Some(std::time::Duration::from_secs(1)),
-        };
+    pub fn max_batch_size(mut self, size: usize) -> Self {
+        self.options.max_batch_size = Some(size);
+        self
+    }
 
-        Logger::new(Some(options))
+    pub fn flush_interval(mut self, interval: Duration) -> Self {
+        self.options.flush_interval = Some(interval);
+        self
+    }
+
+    pub fn build(self) -> Logger {
+        Logger::new(Some(self.options))
     }
 }
