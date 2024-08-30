@@ -11,6 +11,14 @@ pub struct LogEntry {
 }
 
 impl LogEntry {
+    pub fn new(level: &str, message: &str) -> Self {
+        Self {
+            level: level.to_string(),
+            message: message.to_string(),
+            meta: HashMap::new(),
+        }
+    }
+
     pub fn builder(level: &str, message: &str) -> LogEntryBuilder {
         LogEntryBuilder::new(level, message)
     }
