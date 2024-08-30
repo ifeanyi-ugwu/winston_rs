@@ -5,11 +5,7 @@ use winston::{format, transports, LogQuery, Logger, Order};
 fn test_logging_and_querying() {
     // Setup logger with file transport
     let logger = Logger::builder()
-        .add_transport(
-            transports::File::builder()
-                .filename("test_log_file.log")
-                .build(),
-        )
+        .add_transport(transports::File::builder().filename("test_log.log").build())
         .format(format::combine(vec![format::timestamp(), format::json()]))
         .build();
 
@@ -25,7 +21,8 @@ fn test_logging_and_querying() {
         .until(Utc.with_ymd_and_hms(2024, 8, 29, 23, 59, 59).unwrap())
         .levels(vec!["error"])
         .limit(10)
-        .search_term("t");
+        .search_term("t")
+        .fields(vec!["message"]);
 
     // Execute the query
     let results = logger.query(&query);

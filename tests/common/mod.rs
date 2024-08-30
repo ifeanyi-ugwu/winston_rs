@@ -36,4 +36,8 @@ impl Transport for DelayedTransport {
     fn get_format(&self) -> Option<&crate::format::Format> {
         None
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

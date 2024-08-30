@@ -13,7 +13,7 @@ fn test_default_logger() {
 
 #[test]
 fn test_custom_logger() {
-    let file_transport = transports::File::builder().filename("test_log.txt").build();
+    let file_transport = transports::File::builder().filename("test_log.log").build();
 
     let custom_logger = Logger::builder()
         .level("debug")
