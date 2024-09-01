@@ -35,31 +35,6 @@ impl LoggerOptions {
         self
     }
 
-    /// Replaces the existing transports with a new set of transports.
-    ///
-    /// This method clears any existing transports and replaces them with the
-    /// provided vector of transports. Each transport is automatically wrapped
-    /// in an `Arc` to ensure it is thread-safe.
-    ///
-    /// # Arguments
-    ///
-    /// * `transports` - A vector of transports that will replace the current transports.
-    pub fn transports<T: Transport + Send + Sync + 'static>(mut self, transports: Vec<T>) -> Self {
-        // Initialize the vector if it doesn't exist, and then clear it to reset
-        if self.transports.is_none() {
-            self.transports = Some(Vec::new());
-        } else {
-            self.transports.as_mut().unwrap().clear();
-        }
-
-        // Wrap each transport in Arc and add to the internal transports vector
-        for transport in transports {
-            self.transports.as_mut().unwrap().push(Arc::new(transport));
-        }
-
-        self
-    }
-
     /// Adds a single transport to the existing list of transports.
     ///
     /// This method adds the provided transport to the existing list of transports,
