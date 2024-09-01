@@ -1,6 +1,6 @@
 use super::{transports::Transport, Logger, LoggerOptions};
 use logform::Format;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 pub struct LoggerBuilder {
     options: LoggerOptions,
@@ -28,16 +28,6 @@ impl LoggerBuilder {
             .transports
             .get_or_insert_with(Vec::new)
             .push(Arc::new(transport));
-        self
-    }
-
-    pub fn max_batch_size(mut self, size: usize) -> Self {
-        self.options.max_batch_size = Some(size);
-        self
-    }
-
-    pub fn flush_interval(mut self, interval: Duration) -> Self {
-        self.options.flush_interval = Some(interval);
         self
     }
 

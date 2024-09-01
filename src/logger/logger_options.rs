@@ -3,15 +3,13 @@ use super::{
     transports::{console::ConsoleTransportOptions, Console, Transport, TransportStreamOptions},
 };
 use logform::{json, Format};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 pub struct LoggerOptions {
     pub levels: Option<HashMap<String, u8>>,
     pub format: Option<Format>,
     pub level: Option<String>,
     pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
-    pub max_batch_size: Option<usize>,
-    pub flush_interval: Option<Duration>,
 }
 
 impl LoggerOptions {
@@ -91,26 +89,6 @@ impl LoggerOptions {
         self.levels = Some(levels);
         self
     }
-
-    /// Sets the maximum batch size for buffering log entries.
-    ///
-    /// # Arguments
-    ///
-    /// * `max_batch_size` - The maximum number of log entries to buffer before processing.
-    pub fn max_batch_size(mut self, max_batch_size: usize) -> Self {
-        self.max_batch_size = Some(max_batch_size);
-        self
-    }
-
-    /// Sets the flush interval for processing buffered log entries.
-    ///
-    /// # Arguments
-    ///
-    /// * `flush_interval` - The duration after which the buffer is flushed, even if it's not full.
-    pub fn flush_interval(mut self, flush_interval: Duration) -> Self {
-        self.flush_interval = Some(flush_interval);
-        self
-    }
 }
 
 impl Default for LoggerOptions {
@@ -121,8 +99,6 @@ impl Default for LoggerOptions {
     /// - The logging level set to "info".
     /// - A single console transport with "info" level.
     /// - The JSON format for log entries.
-    /// - A default batch size of 100 entries.
-    /// - A default flush interval of 1 second.
     fn default() -> Self {
         let console_options = ConsoleTransportOptions {
             base: Some(TransportStreamOptions {
@@ -138,8 +114,6 @@ impl Default for LoggerOptions {
             level: Some("info".to_string()),
             transports: Some(vec![console_transport]),
             format: Some(json()),
-            max_batch_size: Some(100),
-            flush_interval: Some(Duration::from_secs(1)),
         }
     }
 }
