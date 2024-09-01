@@ -1,7 +1,4 @@
-use super::{
-    default_levels::default_levels,
-    transports::{console::ConsoleTransportOptions, Console, Transport, TransportStreamOptions},
-};
+use super::{default_levels::default_levels, transports::Transport};
 use logform::{json, Format};
 use std::{collections::HashMap, sync::Arc};
 
@@ -97,22 +94,13 @@ impl Default for LoggerOptions {
     /// The default configuration includes:
     /// - A default set of logging levels.
     /// - The logging level set to "info".
-    /// - A single console transport with "info" level.
+    /// - No default transports.
     /// - The JSON format for log entries.
     fn default() -> Self {
-        let console_options = ConsoleTransportOptions {
-            base: Some(TransportStreamOptions {
-                level: Some("info".to_string()),
-                format: None,
-            }),
-        };
-
-        let console_transport = Arc::new(Console::new(Some(console_options)));
-
         LoggerOptions {
             levels: Some(default_levels()),
             level: Some("info".to_string()),
-            transports: Some(vec![console_transport]),
+            transports: Some(Vec::new()),
             format: Some(json()),
         }
     }
