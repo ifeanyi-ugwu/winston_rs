@@ -13,14 +13,15 @@ use winston::{
 fn test_default_logger() {
     log_info!("This use the default configuration");
 
-    configure(
+    configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .transports(vec![Console::new(None)])
+            .add_transport(Console::new(None))
             .format(format::combine(vec![format::timestamp(), format::json()])),
-    );
+    ));
 
     log_info!("This will use the new configuration");
+    Logger::shutdown();
 }
 
 #[test]
@@ -30,20 +31,21 @@ fn test_default_logger_macros() {
 
     let error = "an error";
     log_error!("This is an error: {}", error);
+    Logger::shutdown();
 }
 
 #[test]
 fn test_configure_on_custom_logger() {
-    let mut logger = Logger::new(None);
+    let logger = Logger::new(None);
 
     logger.info("This is a message from the custom logger");
 
-    logger.configure(LoggerOptions {
-        level: Some("debug".to_string()),
-        transports: Some(vec![Arc::new(Console::new(None))]),
-        format: Some(format::simple()),
-        ..Default::default()
-    });
+    logger.configure(Some(
+        LoggerOptions::new()
+            .add_transport(Console::new(None))
+            .format(format::simple())
+            .level("debug"),
+    ));
 
     logger.info("This is a message from the custom logger");
 }
