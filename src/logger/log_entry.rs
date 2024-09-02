@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ impl LogEntry {
             .get("timestamp")
             .and_then(|t| t.as_str())
             .and_then(|t| NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f").ok())
-            .map(|t| DateTime::<Utc>::from_utc(t, Utc))
+            .map(|t| Utc.from_utc_datetime(&t))
     }
 }
 
