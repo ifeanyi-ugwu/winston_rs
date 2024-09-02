@@ -23,18 +23,6 @@ impl LogEntry {
         LogEntryBuilder::new(level, message)
     }
 
-    pub fn flush() -> Self {
-        LogEntry {
-            level: "FLUSH".to_string(),
-            message: String::new(),
-            meta: HashMap::new(),
-        }
-    }
-
-    pub fn is_flush(&self) -> bool {
-        self.level == "FLUSH"
-    }
-
     pub fn timestamp(&self) -> Option<DateTime<Utc>> {
         self.meta
             .get("timestamp")
