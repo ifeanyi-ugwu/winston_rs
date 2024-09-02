@@ -1,4 +1,8 @@
-use super::{transports::Transport, Logger, LoggerOptions};
+use super::{
+    logger_options::{DebugFormat, DebugTransport},
+    transports::Transport,
+    Logger, LoggerOptions,
+};
 use logform::Format;
 use std::sync::Arc;
 
@@ -19,15 +23,26 @@ impl LoggerBuilder {
     }
 
     pub fn format(mut self, format: Format) -> Self {
-        self.options.format = Some(format);
+        self.options.format = Some(DebugFormat(format));
         self
     }
 
-    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+    /*pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
         self.options
             .transports
             .get_or_insert_with(Vec::new)
             .push(Arc::new(transport));
+        self
+    }*/
+    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+        if self.options.transports.is_none() {
+            self.options.transports = Some(Vec::new());
+        }
+        self.options
+            .transports
+            .as_mut()
+            .unwrap()
+            .push(DebugTransport(Arc::new(transport)));
         self
     }
 

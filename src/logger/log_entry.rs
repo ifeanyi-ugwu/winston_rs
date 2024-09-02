@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct LogEntry {
     pub level: String,
     pub message: String,

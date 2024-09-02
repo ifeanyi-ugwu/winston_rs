@@ -1,12 +1,38 @@
 use super::{default_levels::default_levels, transports::Transport};
 use logform::{json, Format};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
+// We'll use a wrapper type for Format to implement Debug
+#[derive(Clone)]
+pub struct DebugFormat(pub Format);
+
+impl fmt::Debug for DebugFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Format")
+    }
+}
+
+// We'll use a wrapper type for Transport to implement Debug
+pub struct DebugTransport(pub Arc<dyn Transport + Send + Sync>);
+
+impl fmt::Debug for DebugTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Transport")
+    }
+}
+
+impl Clone for DebugTransport {
+    fn clone(&self) -> Self {
+        DebugTransport(Arc::clone(&self.0))
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LoggerOptions {
     pub levels: Option<HashMap<String, u8>>,
-    pub format: Option<Format>,
+    pub format: Option<DebugFormat>,
     pub level: Option<String>,
-    pub transports: Option<Vec<Arc<dyn Transport + Send + Sync>>>,
+    pub transports: Option<Vec<DebugTransport>>,
 }
 
 impl LoggerOptions {
@@ -31,7 +57,7 @@ impl LoggerOptions {
     ///
     /// * `format` - The log format to be used.
     pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
+        self.format = Some(DebugFormat(format));
         self
     }
 
@@ -48,7 +74,10 @@ impl LoggerOptions {
         if self.transports.is_none() {
             self.transports = Some(Vec::new());
         }
-        self.transports.as_mut().unwrap().push(Arc::new(transport));
+        self.transports
+            .as_mut()
+            .unwrap()
+            .push(DebugTransport(Arc::new(transport)));
         self
     }
 
@@ -60,6 +89,18 @@ impl LoggerOptions {
     pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
         self.levels = Some(levels);
         self
+    }
+
+    // Helper method to get the actual Format
+    pub fn get_format(&self) -> Option<&Format> {
+        self.format.as_ref().map(|df| &df.0)
+    }
+
+    // Helper method to get the actual Transports
+    pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport + Send + Sync>>> {
+        self.transports
+            .as_ref()
+            .map(|ts| ts.iter().map(|dt| Arc::clone(&dt.0)).collect())
     }
 }
 
@@ -76,7 +117,7 @@ impl Default for LoggerOptions {
             levels: Some(default_levels()),
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
-            format: Some(json()),
+            format: Some(DebugFormat(json())),
         }
     }
 }

@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
 
+use crate::LogEntry;
+
 pub struct LogQuery {
     pub from: Option<DateTime<Utc>>,
     pub until: Option<DateTime<Utc>>,
@@ -68,5 +70,17 @@ impl LogQuery {
     pub fn search_term<S: Into<String>>(mut self, search_term: S) -> Self {
         self.search_term = Some(search_term.into());
         self
+    }
+
+    pub fn matches(&self, entry: &LogEntry) -> bool {
+        // Implement the matching logic here
+        // For example:
+        /*if let Some(ref level) = self.level {
+            if entry.level != *level {
+                return false;
+            }
+        }*/
+        // Add more conditions based on other fields in LogQuery
+        true
     }
 }
