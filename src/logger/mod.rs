@@ -15,11 +15,11 @@ pub use log_query::LogQuery;
 use logform::{json, Format};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
-use std::collections::HashMap;
-use std::ops::Deref;
+//use std::collections::HashMap;
+//use std::ops::Deref;
 use std::sync::{Arc, Mutex, RwLock};
-use std::{clone, thread};
-use transports::Transport;
+use std::thread;
+//use transports::Transport;
 
 #[derive(Debug)]
 pub enum LogMessage {
@@ -79,7 +79,7 @@ impl Logger {
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
-            println!("Worker thread starting...");
+            //println!("Worker thread starting..."); // Debug print
             Self::worker_loop(
                 receiver,
                 // transports_clone,
@@ -90,7 +90,7 @@ impl Logger {
                 // options_clone,
                 worker_shared_state,
             );
-            println!("Worker thread finished.");
+            //println!("Worker thread finished."); // Debug print
         });
 
         Logger {
@@ -556,16 +556,16 @@ impl Logger {
         Ok(results)
     }*/
 
-    /*pub fn default() -> &'static Mutex<Logger> {
+    pub fn default() -> &'static Mutex<Logger> {
         &DEFAULT_LOGGER
-    }*/
+    }
 }
 
 impl Drop for Logger {
     fn drop(&mut self) {
-        println!("Dropping Logger!");
+        //println!("Dropping Logger!"); // Debug print
         self.close();
-        println!("Logger dropped");
+        // println!("Logger dropped"); // Debug print
     }
 }
 
