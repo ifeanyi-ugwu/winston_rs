@@ -1,6 +1,6 @@
 # winston
 
-![Crates.io](https://img.shields.io/crates/v/logform)
+![Crates.io](https://img.shields.io/crates/v/winston)
 ![Rust](https://img.shields.io/badge/rust-%E2%9C%94-brightgreen)
 
 A customizable, multithreaded logging library for Rust, inspired by the flexibility of Winston.js. This logger supports custom log levels, multiple transports, real-time filtering, and format customization.
