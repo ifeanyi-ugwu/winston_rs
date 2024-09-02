@@ -2,7 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use winston::{LogEntry, Logger};
 
 fn benchmark_logging(c: &mut Criterion) {
-    let logger = Logger::new(None);
+    let logger = Logger::builder()
+        .add_transport(winston::transports::Console::new(None))
+        .build();
 
     c.bench_function("log_message", |b| {
         b.iter(|| {
