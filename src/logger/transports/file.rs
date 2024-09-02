@@ -66,13 +66,21 @@ impl FileTransport {
 impl FileTransport {
     fn parse_log_entry(&self, line: &str) -> Option<LogEntry> {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
+        // println!("Parsed log entry: {:?}", parsed); // Debug print
 
         let level = parsed["level"].as_str()?;
         let message = parsed["message"].as_str()?;
         let meta = parsed
             .as_object()?
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            //.map(|(k, v)| (k.clone(), v.clone()))
+            .filter_map(|(k, v)| {
+                if k != "level" && k != "message" {
+                    Some((k.clone(), v.clone()))
+                } else {
+                    None
+                }
+            })
             .collect::<HashMap<_, _>>(); // Collect all metadata
 
         Some(LogEntry {
@@ -80,40 +88,6 @@ impl FileTransport {
             message: message.to_string(),
             meta,
         })
-    }
-
-    fn matches_query(&self, entry: &LogEntry, query: &LogQuery) -> bool {
-        if let Some(start_time) = query.from {
-            if let Some(entry_time) = entry.timestamp() {
-                if entry_time < start_time {
-                    return false;
-                }
-            }
-        }
-
-        if let Some(end_time) = query.until {
-            if let Some(entry_time) = entry.timestamp() {
-                if entry_time > end_time {
-                    return false;
-                }
-            }
-        }
-
-        if !query.levels.is_empty() && !query.levels.contains(&entry.level) {
-            return false;
-        }
-
-        if let Some(search_term) = &query.search_term {
-            if !entry
-                .message
-                .to_lowercase()
-                .contains(&search_term.to_lowercase())
-            {
-                return false;
-            }
-        }
-
-        true
     }
 }
 
@@ -164,16 +138,34 @@ impl Queryable for FileTransport {
         let reader = BufReader::new(file);
 
         let mut results = Vec::new();
+        let mut line_count = 0;
+
+        // Determine the start and limit values
+        let start = query.start.unwrap_or(0);
+        let limit = query.limit.unwrap_or(usize::MAX);
 
         for line in reader.lines() {
             let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
             if let Some(entry) = self.parse_log_entry(&line) {
-                if self.matches_query(&entry, query) {
-                    results.push(entry);
+                //println!("parsed entry {:?}", entry);
+                if query.matches(&entry) {
+                    // Skip lines until the start position
+                    if line_count >= start {
+                        results.push(entry);
+                    }
+                    line_count += 1;
+
+                    // Stop reading if the limit is reached
+                    if results.len() >= limit {
+                        break;
+                    }
                 }
             }
         }
 
+        // Apply sorting to the results
+        query.sort(&mut results);
+        //println!("results: {:?}", results);
         Ok(results)
     }
 }

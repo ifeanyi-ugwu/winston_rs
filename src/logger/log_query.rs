@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use crate::LogEntry;
 
@@ -21,13 +21,13 @@ pub enum Order {
 impl LogQuery {
     pub fn new() -> Self {
         LogQuery {
-            from: None,
-            until: None,
-            limit: None,
-            start: None,
+            from: Some(Utc::now() - Duration::days(1)),
+            until: Some(Utc::now()),
+            limit: Some(50),
+            start: Some(0),
             order: Order::Descending,
-            levels: Vec::new(),
             fields: Vec::new(),
+            levels: Vec::new(),
             search_term: None,
         }
     }
@@ -73,14 +73,60 @@ impl LogQuery {
     }
 
     pub fn matches(&self, entry: &LogEntry) -> bool {
-        // Implement the matching logic here
-        // For example:
-        /*if let Some(ref level) = self.level {
-            if entry.level != *level {
+        // Check level
+        if !self.levels.is_empty() && !self.levels.contains(&entry.level) {
+            //println!("failed at levels check");
+            return false;
+        }
+
+        // Check timestamp
+        if let Some(from) = self.from {
+            if let Some(timestamp) = entry.timestamp() {
+                if timestamp < from {
+                    //println!("failed at from check");
+                    return false;
+                }
+            } else {
+                println!("failed at from check");
                 return false;
             }
-        }*/
-        // Add more conditions based on other fields in LogQuery
+        }
+
+        if let Some(until) = self.until {
+            if let Some(timestamp) = entry.timestamp() {
+                if timestamp > until {
+                    //println!("failed at until check");
+                    return false;
+                }
+            } else {
+                //println!("failed at until check");
+                return false;
+            }
+        }
+
+        // Check search term in message
+        if let Some(ref search_term) = self.search_term {
+            if !entry.message.contains(search_term) {
+                //println!("failed at search term check");
+                return false;
+            }
+        }
+
+        // Check fields in meta data
+        for field in &self.fields {
+            if !entry.meta.contains_key(field) {
+                //println!("failed at field check");
+                return false;
+            }
+        }
+
         true
+    }
+
+    pub fn sort(&self, entries: &mut Vec<LogEntry>) {
+        match self.order {
+            Order::Ascending => entries.sort_by(|a, b| a.timestamp().cmp(&b.timestamp())),
+            Order::Descending => entries.sort_by(|a, b| b.timestamp().cmp(&a.timestamp())),
+        }
     }
 }
