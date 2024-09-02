@@ -3,8 +3,11 @@ use crate::LogEntry;
 use crossbeam_channel::Receiver as CBReceiver;
 use logform::Format;
 use std::{
-    sync::Arc,
-    time::{Duration, Instant},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
 };
 
 pub struct LoggerWorker {
@@ -12,10 +15,9 @@ pub struct LoggerWorker {
     pub format: Format,
     pub level: String,
     pub transports: Vec<Arc<dyn Transport + Send + Sync>>,
-    pub log_receiver: CBReceiver<LogEntry>,
-    buffer: Vec<LogEntry>,
-    max_batch_size: usize,
-    flush_interval: Duration,
+    pub log_receiver: CBReceiver<Option<LogEntry>>,
+    shutdown_signal: Arc<AtomicBool>,
+    worker_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl LoggerWorker {
@@ -24,51 +26,68 @@ impl LoggerWorker {
         format: Format,
         level: String,
         transports: Vec<Arc<dyn Transport + Send + Sync>>,
-        log_receiver: CBReceiver<LogEntry>,
-        max_batch_size: usize,
-        flush_interval: Duration,
+        log_receiver: CBReceiver<Option<LogEntry>>,
+        shutdown_signal: Arc<AtomicBool>,
     ) -> Self {
+        let shutdown_signal_clone = Arc::clone(&shutdown_signal);
+        let levels_clone = levels.clone();
+        let format_clone = format.clone();
+        let level_clone = level.clone();
+        let transports_clone = transports.clone();
+        let log_rec_clone = log_receiver.clone();
+
+        // Start the worker thread
+        let worker_handle = thread::spawn(move || {
+            let mut worker = LoggerWorker {
+                levels: levels_clone,
+                format: format_clone,
+                level: level_clone,
+                transports: transports_clone,
+                log_receiver: log_rec_clone,
+                shutdown_signal: shutdown_signal_clone,
+                worker_handle: None,
+            };
+
+            worker.run();
+        });
+
         LoggerWorker {
             levels,
             format,
             level,
             transports,
             log_receiver,
-            buffer: Vec::with_capacity(max_batch_size),
-            max_batch_size,
-            flush_interval,
+            shutdown_signal,
+            worker_handle: Some(worker_handle),
         }
     }
 
     pub fn run(&mut self) {
-        let mut last_flush_time = Instant::now();
-
-        while let Ok(entry) = self.log_receiver.recv() {
-            if entry.is_flush() {
-                // Flush any remaining entries before stopping
-                self.flush_buffer();
-                break;
-            }
-
-            if self.is_level_enabled(&entry.level) {
-                self.buffer.push(entry);
-            }
-
-            if self.buffer.len() >= self.max_batch_size
-                || last_flush_time.elapsed() >= self.flush_interval
+        while !self.shutdown_signal.load(Ordering::Relaxed) {
+            match self
+                .log_receiver
+                .recv_timeout(std::time::Duration::from_millis(100))
             {
-                self.flush_buffer();
-                last_flush_time = Instant::now();
+                Ok(Some(entry)) => {
+                    if self.is_level_enabled(&entry.level)
+                        && (!entry.message.is_empty() || !entry.meta.is_empty())
+                    {
+                        self.process_log_entry(entry);
+                    }
+                }
+                Ok(None) => break, // Shutdown signal received
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
+                Err(_) => break, // Channel is disconnected
             }
         }
-    }
 
-    fn flush_buffer(&mut self) {
-        // Drain the buffer into a temporary vector
-        let entries_to_flush = self.buffer.drain(..).collect::<Vec<_>>();
-
-        for entry in entries_to_flush {
-            self.process_log_entry(entry);
+        // Process any remaining messages in the channel
+        while let Ok(Some(entry)) = self.log_receiver.try_recv() {
+            if self.is_level_enabled(&entry.level)
+                && (!entry.message.is_empty() || !entry.meta.is_empty())
+            {
+                self.process_log_entry(entry);
+            }
         }
     }
 
@@ -124,5 +143,15 @@ impl LoggerWorker {
 
     fn get_level_severity(&self, level: &str) -> Option<u8> {
         self.levels.get_severity(level)
+    }
+}
+
+impl Drop for LoggerWorker {
+    fn drop(&mut self) {
+        self.shutdown_signal.store(true, Ordering::Relaxed);
+
+        if let Some(handle) = self.worker_handle.take() {
+            handle.join().expect("Failed to join worker thread");
+        }
     }
 }
