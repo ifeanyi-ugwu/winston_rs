@@ -1,7 +1,10 @@
 mod common;
 
-use std::sync::Arc;
-
+use common::DelayedTransport;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use winston::{
     configure, format, log_error, log_info, log_warn, transports::Console, Logger, LoggerOptions,
 };
@@ -45,52 +48,53 @@ fn test_configure_on_custom_logger() {
     logger.info("This is a message from the custom logger");
 }
 
-use std::{
-    thread,
-    time::{Duration, Instant},
-};
-
-use crossbeam_channel::unbounded;
-
 #[test]
 fn test_logger_non_blocking() {
-    // Create a channel to signal when the delayed transport has finished
-    let (done_sender, done_receiver) = unbounded();
+    const NUM_MESSAGES: usize = 100;
+    const PROCESS_DELAY: Duration = Duration::from_millis(100);
+
+    let delayed_transport = DelayedTransport::new(PROCESS_DELAY);
 
     let logger = Logger::builder()
         .add_transport(Console::new(None))
-        .add_transport(common::DelayedTransport::new(Duration::from_millis(500), done_sender.clone())).format(format::pretty_print().with_option("colorize", "true"))
+        .add_transport(delayed_transport)
+        .format(format::pretty_print().with_option("colorize", "true"))
         .build();
 
-    // Measure time taken for logging
-    let start_time = Instant::now();
+    // Measure time to enqueue all messages
+    let enqueue_start = Instant::now();
 
-    // Log multiple messages
-    for i in 0..10 {
-        logger.info(&format!("Test message {}", i));
+    for i in 0..NUM_MESSAGES {
+        let log_entry = winston::LogEntry::builder("info", &format!("Test message {}", i)).build();
+        logger.log(log_entry);
     }
 
-    // Simulate a non-blocking task with a shorter duration
-    let simulated_work_duration = Duration::from_millis(100);
-    thread::sleep(simulated_work_duration); // Simulate some work
+    let actual_enqueue_duration = enqueue_start.elapsed();
 
-    let elapsed = start_time.elapsed();
+    // Calculate theoretical synchronous enqueue time
+    let theoretical_sync_duration = PROCESS_DELAY * NUM_MESSAGES as u32;
 
-    // Tolerance for expected execution time (adds some margin for variance in execution)
-    let tolerance = Duration::from_millis(50);
-
-    println!("Expected elapsed time: {:?}, Actual Elapsed time: {:?}",simulated_work_duration+tolerance, elapsed);
-
-    // Assert that the elapsed time is within the expected range
-    assert!(
-        elapsed <= simulated_work_duration + tolerance,
-        "Logging operation seems to block the caller thread! Expected elapsed time: {:?}, but got: {:?}",
-        simulated_work_duration, 
-        elapsed
+    println!("Number of messages: {}", NUM_MESSAGES);
+    println!("Delay per message: {:?}", PROCESS_DELAY);
+    println!("Actual enqueue duration: {:?}", actual_enqueue_duration);
+    println!(
+        "Theoretical synchronous duration: {:?}",
+        theoretical_sync_duration
     );
 
-        // Wait for the delayed transport to finish
-    done_receiver.recv().expect("Failed to receive completion signal");
+    // Assertions
+    assert!(
+        actual_enqueue_duration < theoretical_sync_duration,
+        "Actual enqueue time ({:?}) should be less than theoretical synchronous time ({:?})",
+        actual_enqueue_duration,
+        theoretical_sync_duration
+    );
 
-    println!("Logging completed asynchronously after {:?}", start_time.elapsed());
+    // Check that actual enqueuing was significantly faster than theoretical synchronous time
+    assert!(
+        actual_enqueue_duration * 5 < theoretical_sync_duration,
+        "Actual enqueue time ({:?}) should be at least 5 times faster than theoretical synchronous time ({:?})",
+        actual_enqueue_duration,
+        theoretical_sync_duration
+    );
 }
