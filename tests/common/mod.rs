@@ -34,3 +34,8 @@ impl Transport for DelayedTransport {
         self
     }
 }
+
+pub fn generate_random_filename() -> String {
+    let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
+    format!("test_log_{}.log", timestamp)
+}
