@@ -1,5 +1,5 @@
 use std::{thread, time::Duration};
-use winston::transports::Transport;
+use winston_transport::Transport;
 
 pub struct DelayedTransport {
     delay: Duration,

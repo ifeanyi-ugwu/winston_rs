@@ -1,7 +1,6 @@
-use std::any::Any;
-
-use super::{Transport, TransportStreamOptions};
 use logform::Format;
+use std::any::Any;
+use winston_transport::{Transport, TransportStreamOptions};
 
 pub struct ConsoleTransportOptions {
     pub base: Option<TransportStreamOptions>,

@@ -18,6 +18,7 @@ lazy_static = "1.5.0"
 logform = "0.1.4"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
+winston_transport = "0.1.0"
 
 [dev-dependencies]
 criterion = "0.5.1"

@@ -1,12 +1,13 @@
 mod common;
 
 use common::DelayedTransport;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use winston::{
-    configure, format, log_error, log_info, log_warn, transports::Console, Logger, LoggerOptions,
+    configure,
+    format::{self, LogInfo},
+    log_error, log_info, log_warn,
+    transports::Console,
+    Logger, LoggerOptions,
 };
 
 #[test]
@@ -67,7 +68,7 @@ fn test_logger_non_blocking() {
     let enqueue_start = Instant::now();
 
     for i in 0..NUM_MESSAGES {
-        let log_entry = winston::LogEntry::builder("info", &format!("Test message {}", i)).build();
+        let log_entry = LogInfo::new("info", &format!("Test message {}", i));
         logger.log(log_entry);
     }
 

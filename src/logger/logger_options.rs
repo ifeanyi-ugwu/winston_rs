@@ -1,6 +1,7 @@
-use super::{default_levels::default_levels, transports::Transport};
+use super::default_levels::default_levels;
 use logform::{json, Format};
 use std::{collections::HashMap, fmt, sync::Arc};
+use winston_transport::Transport;
 
 // We'll use a wrapper type for Format to implement Debug
 #[derive(Clone)]

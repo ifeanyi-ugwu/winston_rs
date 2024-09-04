@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use winston::{LogEntry, Logger};
+use logform::LogInfo;
+use winston::Logger;
 
 fn benchmark_logging(c: &mut Criterion) {
     let logger = Logger::builder()
@@ -9,7 +10,7 @@ fn benchmark_logging(c: &mut Criterion) {
     c.bench_function("log_message", |b| {
         b.iter(|| {
             for _ in 0..1000 {
-                logger.log(black_box(LogEntry::new("info", "benchmark message")));
+                logger.log(black_box(LogInfo::new("info", "benchmark message")));
             }
         })
     });
@@ -31,7 +32,7 @@ fn benchmark_logging(c: &mut Criterion) {
     c.bench_function("log_message_to_file", |b| {
         b.iter(|| {
             for _ in 0..1000 {
-                logger.log(black_box(LogEntry::new("info", "benchmark message")));
+                logger.log(black_box(LogInfo::new("info", "benchmark message")));
             }
         })
     });

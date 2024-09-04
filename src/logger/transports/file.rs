@@ -1,13 +1,11 @@
-use super::{Queryable, Transport, TransportStreamOptions};
-use crate::logger::log_query::LogQuery;
-use crate::LogEntry;
 //use std::collections::HashMap;
-use logform::Format;
+use logform::{Format, LogInfo};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Mutex;
+use winston_transport::{LogQuery, Queryable, Transport, TransportStreamOptions};
 
 pub struct FileTransportOptions {
     pub base: Option<TransportStreamOptions>,
@@ -64,7 +62,7 @@ impl FileTransport {
 }
 
 impl FileTransport {
-    fn parse_log_entry(&self, line: &str) -> Option<LogEntry> {
+    fn parse_log_entry(&self, line: &str) -> Option<LogInfo> {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
         // println!("Parsed log entry: {:?}", parsed); // Debug print
 
@@ -83,7 +81,7 @@ impl FileTransport {
             })
             .collect::<HashMap<_, _>>(); // Collect all metadata
 
-        Some(LogEntry {
+        Some(LogInfo {
             level: level.to_string(),
             message: message.to_string(),
             meta,
@@ -132,7 +130,7 @@ impl Transport for FileTransport {
 }
 
 impl Queryable for FileTransport {
-    fn query(&self, query: &LogQuery) -> Result<Vec<LogEntry>, String> {
+    fn query(&self, query: &LogQuery) -> Result<Vec<LogInfo>, String> {
         let file = File::open(self.options.filename.as_ref().unwrap())
             .map_err(|e| format!("Failed to open log file: {}", e))?;
         let reader = BufReader::new(file);

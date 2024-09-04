@@ -1,8 +1,6 @@
 pub mod create_logger;
 mod custom_levels;
 mod default_levels;
-pub mod log_entry;
-pub mod log_query;
 mod logger_builder;
 mod logger_options;
 pub mod transports;
@@ -10,9 +8,7 @@ pub mod transports;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use custom_levels::CustomLevels;
 use lazy_static::lazy_static;
-use log_entry::{convert_log_entry, LogEntry};
-pub use log_query::LogQuery;
-use logform::{json, Format};
+use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
 //use std::collections::HashMap;
@@ -20,17 +16,18 @@ pub use logger_options::LoggerOptions;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 //use transports::Transport;
+use winston_transport::LogQuery;
 
 #[derive(Debug)]
 pub enum LogMessage {
-    Entry(LogEntry),
+    Entry(LogInfo),
     Configure(LoggerOptions),
     Shutdown,
 }
 
 struct SharedState {
     options: LoggerOptions,
-    buffer: Vec<LogEntry>,
+    buffer: Vec<LogInfo>,
 }
 
 pub struct Logger {
@@ -272,7 +269,7 @@ impl Logger {
         }
         println!("Processed log entry: {:?}", entry);
     }*/
-    fn process_entry(entry: &LogEntry, options: &LoggerOptions) {
+    fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
         let levels = CustomLevels::new(options.levels.clone().unwrap_or_default());
         let level = options.level.as_deref().unwrap_or("info");
         let format = options.get_format().cloned().unwrap_or_else(|| json());
@@ -308,18 +305,18 @@ impl Logger {
     }
 
     fn format_message(
-        entry: &LogEntry,
+        entry: &LogInfo,
         transport_format: Option<&Format>,
         default_format: &Format,
     ) -> Option<String> {
-        let converted_entry = convert_log_entry(entry);
+        // let converted_entry = convert_log_entry(entry);
         let format_to_use = transport_format.unwrap_or(default_format);
         format_to_use
-            .transform(converted_entry, None)
+            .transform(entry.clone(), None)
             .map(|entry| entry.message)
     }
 
-    pub fn query(&self, options: &LogQuery) -> Result<Vec<LogEntry>, String> {
+    pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
         let state = self.shared_state.read().unwrap();
         let mut results = Vec::new();
 
@@ -406,7 +403,7 @@ impl Logger {
         self.log_async(entry);
     }*/
 
-    pub fn log(&self, entry: LogEntry) {
+    pub fn log(&self, entry: LogInfo) {
         let _ = self.sender.send(LogMessage::Entry(entry));
     }
 
@@ -574,7 +571,7 @@ macro_rules! create_log_methods {
         impl Logger {
             $(
                 pub fn $level(&self, message: &str) {
-                    let log_entry = LogEntry::builder(stringify!($level), message).build();
+                    let log_entry = LogInfo::new(stringify!($level), message);
                     self.log(log_entry);
                 }
             )*
@@ -598,7 +595,7 @@ pub fn log(level: &str, message: &str) {
     DEFAULT_LOGGER
         .lock()
         .unwrap()
-        .log(LogEntry::builder(level, message).build());
+        .log(LogInfo::new(level, message));
 }
 
 pub fn configure(options: Option<LoggerOptions>) {

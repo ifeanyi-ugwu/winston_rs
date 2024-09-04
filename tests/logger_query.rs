@@ -1,7 +1,6 @@
 mod common;
 
-use chrono::{TimeZone, Utc};
-use winston::{format, transports, LogQuery, Logger, Order};
+use winston::{format, transports, LogQuery, Logger};
 
 #[test]
 fn test_logging_and_querying() {

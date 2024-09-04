@@ -1,5 +1,8 @@
-use logform::{align, colorize, combine, json, simple, timestamp, Format};
-use winston::{create_logger, transports, LogEntry, Logger};
+use winston::{
+    create_logger,
+    format::{align, colorize, combine, json, simple, timestamp, Format, LogInfo},
+    transports, Logger,
+};
 
 #[test]
 fn test_default_logger() {
@@ -32,14 +35,11 @@ fn test_custom_logger() {
         .build();
 
     custom_logger.info("Testing custom logger");
-    let info = LogEntry::builder("info", "")
-        .option("justaword", serde_json::json!("er"))
-        .option("justAnObj", serde_json::json!({}))
-        .build();
+    let info = LogInfo::new("info", "")
+        .add_meta("justaword", serde_json::json!("er"))
+        .add_meta("justAnObj", serde_json::json!({}));
     custom_logger.log(info);
-    let info = LogEntry::builder("info", "hi")
-        .option("meta", serde_json::json!("s"))
-        .build();
+    let info = LogInfo::new("info", "hi").add_meta("meta", serde_json::json!("s"));
     custom_logger.log(info);
     custom_logger.error("nope");
     custom_logger.info("")
@@ -49,7 +49,7 @@ fn test_custom_logger() {
 #[test]
 fn test_logger_with_only_file_transport() {
     let file_transport = transports::File::builder()
-        .filename("test_log.txt")
+        .filename("test_log.log")
         .level("info")
         .build();
 

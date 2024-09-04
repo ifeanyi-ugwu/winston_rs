@@ -1,10 +1,10 @@
 use super::{
     logger_options::{DebugFormat, DebugTransport},
-    transports::Transport,
     Logger, LoggerOptions,
 };
 use logform::Format;
 use std::sync::Arc;
+use winston_transport::Transport;
 
 pub struct LoggerBuilder {
     options: LoggerOptions,
