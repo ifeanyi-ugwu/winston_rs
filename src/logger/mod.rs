@@ -1,6 +1,7 @@
 pub mod create_logger;
 mod custom_levels;
 mod default_levels;
+mod log_macros;
 mod logger_builder;
 mod logger_options;
 pub mod transports;
@@ -603,27 +604,3 @@ pub fn configure(options: Option<LoggerOptions>) {
     DEFAULT_LOGGER.lock().unwrap().configure(options);
     // DEFAULT_LOGGER.configure(options);
 }
-
-// Convenience macros for global logging
-#[macro_export]
-macro_rules! log_info {
-    ($($arg:tt)*) => {
-        $crate::log("info", &format!($($arg)*));
-    }
-}
-
-#[macro_export]
-macro_rules! log_warn {
-    ($($arg:tt)*) => {
-        $crate::log("warn", &format!($($arg)*));
-    }
-}
-
-#[macro_export]
-macro_rules! log_error {
-    ($($arg:tt)*) => {
-        $crate::log("error", &format!($($arg)*));
-    }
-}
-
-// ... Add more macros for other log levels
