@@ -1,4 +1,4 @@
-use logform::Format;
+use logform::{Format, LogInfo};
 use std::any::Any;
 use winston_transport::Transport;
 
@@ -34,8 +34,8 @@ impl ConsoleTransport {
 }
 
 impl Transport for ConsoleTransport {
-    fn log(&self, message: &str, _level: &str) {
-        println!("{}", message);
+    fn log(&self, info: LogInfo) {
+        println!("{}", info.message);
     }
 
     fn get_level(&self) -> Option<&String> {

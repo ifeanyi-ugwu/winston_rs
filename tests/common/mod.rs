@@ -1,3 +1,4 @@
+use logform::LogInfo;
 use std::{thread, time::Duration};
 use winston_transport::Transport;
 
@@ -12,10 +13,10 @@ impl DelayedTransport {
 }
 
 impl Transport for DelayedTransport {
-    fn log(&self, message: &str, level: &str) {
+    fn log(&self, info: LogInfo) {
         let delay = self.delay;
-        let message = message.to_string();
-        let level = level.to_string();
+        let message = info.message;
+        let level = info.level;
 
         // Directly delay in the current thread (synchronous for testing)
         thread::sleep(delay);

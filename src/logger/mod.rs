@@ -289,7 +289,7 @@ impl Logger {
                 if let Some(formatted_message) =
                     Self::format_message(entry, transport.get_format(), &format)
                 {
-                    transport.log(&formatted_message, &entry.level);
+                    transport.log(formatted_message);
                 }
             }
         }
@@ -309,12 +309,10 @@ impl Logger {
         entry: &LogInfo,
         transport_format: Option<&Format>,
         default_format: &Format,
-    ) -> Option<String> {
-        // let converted_entry = convert_log_entry(entry);
+    ) -> Option<LogInfo> {
         let format_to_use = transport_format.unwrap_or(default_format);
-        format_to_use
-            .transform(entry.clone(), None)
-            .map(|entry| entry.message)
+        format_to_use.transform(entry.clone(), None)
+        //.map(|entry| entry.message)
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {

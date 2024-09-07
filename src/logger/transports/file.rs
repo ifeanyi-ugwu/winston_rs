@@ -97,9 +97,9 @@ impl Transport for FileTransport {
         writeln!(file, "{}", message).unwrap();
     } */
 
-    fn log(&self, message: &str, _level: &str) {
+    fn log(&self, info: LogInfo) {
         let mut file = self.file.lock().unwrap();
-        if let Err(e) = writeln!(file, "{}", message) {
+        if let Err(e) = writeln!(file, "{}", info.message) {
             eprintln!("Failed to write to log file: {}", e);
         }
         if let Err(e) = file.flush() {
