@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
+use std::collections::VecDeque;
 //use std::collections::HashMap;
 //use std::ops::Deref;
 use std::sync::{Arc, Mutex, RwLock};
@@ -27,7 +28,7 @@ pub enum LogMessage {
 
 struct SharedState {
     options: LoggerOptions,
-    buffer: Vec<LogInfo>,
+    buffer: VecDeque<LogInfo>,
 }
 
 pub struct Logger {
@@ -69,7 +70,7 @@ impl Logger {
         let (sender, receiver) = unbounded();
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
-            buffer: Vec::new(),
+            buffer: VecDeque::new(),
         }));
 
         let worker_shared_state = Arc::clone(&shared_state);
@@ -176,7 +177,7 @@ impl Logger {
                         .get_transports()
                         .map_or(true, |t| t.is_empty())
                     {
-                        state.buffer.push(entry.clone());
+                        state.buffer.push_back(entry.clone());
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
                         Self::process_entry(&entry, &state.options);
@@ -233,7 +234,7 @@ impl Logger {
     }*/
 
     fn process_buffered_entries(state: &mut SharedState) {
-        while let Some(entry) = state.buffer.pop() {
+        while let Some(entry) = state.buffer.pop_front() {
             Self::process_entry(&entry, &state.options);
         }
     }

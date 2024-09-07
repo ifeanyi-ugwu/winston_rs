@@ -13,6 +13,7 @@ use winston::{
 #[test]
 fn test_default_logger() {
     log_info!("This use the default configuration");
+    log_info!("This is the second that uses the default configuration to check queue order");
 
     configure(Some(
         LoggerOptions::new()
