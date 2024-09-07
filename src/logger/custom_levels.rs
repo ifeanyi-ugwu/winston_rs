@@ -14,3 +14,16 @@ impl CustomLevels {
         self.levels.get(key).copied()
     }
 }
+
+impl Default for CustomLevels {
+    fn default() -> Self {
+        let mut default_levels = HashMap::new();
+        default_levels.insert("error".to_string(), 0);
+        default_levels.insert("warn".to_string(), 1);
+        default_levels.insert("info".to_string(), 2);
+        default_levels.insert("debug".to_string(), 3);
+        default_levels.insert("trace".to_string(), 4);
+
+        CustomLevels::new(default_levels)
+    }
+}
