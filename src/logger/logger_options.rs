@@ -1,4 +1,4 @@
-use super::default_levels::default_levels;
+use super::{custom_levels::CustomLevels, default_levels::default_levels};
 use logform::{json, Format};
 use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;
@@ -30,7 +30,7 @@ impl Clone for DebugTransport {
 
 #[derive(Debug, Clone)]
 pub struct LoggerOptions {
-    pub levels: Option<HashMap<String, u8>>,
+    pub levels: Option<CustomLevels>,
     pub format: Option<DebugFormat>,
     pub level: Option<String>,
     pub transports: Option<Vec<DebugTransport>>,
@@ -88,7 +88,7 @@ impl LoggerOptions {
     ///
     /// * `levels` - A `HashMap` where the key is the level name and the value is its severity.
     pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
-        self.levels = Some(levels);
+        self.levels = Some(CustomLevels::new(levels));
         self
     }
 
@@ -115,7 +115,7 @@ impl Default for LoggerOptions {
     /// - The JSON format for log entries.
     fn default() -> Self {
         LoggerOptions {
-            levels: Some(default_levels()),
+            levels: Some(CustomLevels::new(default_levels())),
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
             format: Some(DebugFormat(json())),
