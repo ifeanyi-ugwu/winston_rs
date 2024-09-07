@@ -5,10 +5,11 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Mutex;
-use winston_transport::{LogQuery, Queryable, Transport, TransportStreamOptions};
+use winston_transport::{LogQuery, Queryable, Transport};
 
 pub struct FileTransportOptions {
-    pub base: Option<TransportStreamOptions>,
+    pub level: Option<String>,
+    pub format: Option<Format>,
     pub filename: Option<String>,
     /*
     unused yet
@@ -107,17 +108,11 @@ impl Transport for FileTransport {
     }
 
     fn get_level(&self) -> Option<&String> {
-        self.options
-            .base
-            .as_ref()
-            .and_then(|base| base.level.as_ref())
+        self.options.level.as_ref()
     }
 
     fn get_format(&self) -> Option<&Format> {
-        self.options
-            .base
-            .as_ref()
-            .and_then(|base| base.format.as_ref())
+        self.options.format.as_ref()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -169,36 +164,27 @@ impl Queryable for FileTransport {
 }
 
 pub struct FileTransportOptionsBuilder {
-    base: Option<TransportStreamOptions>,
+    level: Option<String>,
+    format: Option<Format>,
     filename: Option<String>,
 }
 
 impl FileTransportOptionsBuilder {
     pub fn new() -> Self {
         Self {
-            base: None,
+            level: None,
+            format: None,
             filename: None,
         }
     }
 
     pub fn level<T: Into<String>>(mut self, level: T) -> Self {
-        let level = level.into();
-        self.base
-            .get_or_insert_with(|| TransportStreamOptions {
-                level: None,
-                format: None,
-            })
-            .level = Some(level);
+        self.level = Some(level.into());
         self
     }
 
     pub fn format(mut self, format: Format) -> Self {
-        self.base
-            .get_or_insert_with(|| TransportStreamOptions {
-                level: None,
-                format: None,
-            })
-            .format = Some(format);
+        self.format = Some(format);
         self
     }
 
@@ -209,7 +195,8 @@ impl FileTransportOptionsBuilder {
 
     pub fn build(self) -> FileTransport {
         let options = FileTransportOptions {
-            base: self.base,
+            level: self.level,
+            format: self.format,
             filename: self.filename,
             // Set other fields as needed
         };
