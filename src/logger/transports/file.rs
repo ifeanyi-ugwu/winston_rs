@@ -50,8 +50,8 @@ impl FileTransport {
         }
     }
 
-    pub fn builder() -> FileTransportOptionsBuilder {
-        FileTransportOptionsBuilder::new()
+    pub fn builder() -> FileTransportBuilder {
+        FileTransportBuilder::new()
     }
 
     /*unused
@@ -163,13 +163,13 @@ impl Queryable for FileTransport {
     }
 }
 
-pub struct FileTransportOptionsBuilder {
+pub struct FileTransportBuilder {
     level: Option<String>,
     format: Option<Format>,
     filename: Option<String>,
 }
 
-impl FileTransportOptionsBuilder {
+impl FileTransportBuilder {
     pub fn new() -> Self {
         Self {
             level: None,
