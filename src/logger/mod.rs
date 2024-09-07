@@ -1,6 +1,5 @@
 pub mod create_logger;
 mod custom_levels;
-mod default_levels;
 mod log_macros;
 mod logger_builder;
 mod logger_options;
@@ -272,7 +271,7 @@ impl Logger {
         println!("Processed log entry: {:?}", entry);
     }*/
     fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
-        let levels = CustomLevels::new(options.levels.clone().unwrap_or_default());
+        let levels = options.levels.clone().unwrap_or_default();
         let level = options.level.as_deref().unwrap_or("info");
         let format = options.get_format().cloned().unwrap_or_else(|| json());
 

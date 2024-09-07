@@ -1,4 +1,4 @@
-use super::{custom_levels::CustomLevels, default_levels::default_levels};
+use super::custom_levels::CustomLevels;
 use logform::{json, Format};
 use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;
@@ -115,7 +115,7 @@ impl Default for LoggerOptions {
     /// - The JSON format for log entries.
     fn default() -> Self {
         LoggerOptions {
-            levels: Some(CustomLevels::new(default_levels())),
+            levels: Some(CustomLevels::default()),
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
             format: Some(DebugFormat(json())),
