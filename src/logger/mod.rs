@@ -71,8 +71,10 @@ impl Logger {
                         state.buffer.push_back(entry.clone());
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
-                        Self::process_entry(&entry, &state.options);
                         Self::process_buffered_entries(&mut state);
+                        Self::process_entry(&entry, &state.options)
+                        //Self::process_entry(&entry, &state.options);
+                        //Self::process_buffered_entries(&mut state);
                     }
                 }
                 LogMessage::Configure(new_options) => {
