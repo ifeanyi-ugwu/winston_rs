@@ -246,7 +246,7 @@ impl Logger {
         LoggerBuilder::new()
     }
 
-    pub fn configure(&self, new_options: Option<LoggerOptions>) {
+    /*pub fn configure(&self, new_options: Option<LoggerOptions>) {
         if new_options.is_none() {
             return;
         } else {
@@ -254,6 +254,48 @@ impl Logger {
                 .sender
                 .send(LogMessage::Configure(new_options.unwrap()));
         }
+    }*/
+
+    pub fn configure(&self, new_options: Option<LoggerOptions>) {
+        let mut state = self.shared_state.write().unwrap();
+
+        // Clear existing transports
+        state.options.transports = Some(Vec::new());
+
+        // Create a new default options instance
+        let default_options = LoggerOptions::default();
+
+        // Apply new options if provided
+        if let Some(options) = new_options {
+            // Format: use the new format if provided, otherwise use the existing format or default to JSON
+            if let Some(format) = options.format {
+                state.options.format = Some(format);
+            } else if state.options.format.is_none() {
+                state.options.format = default_options.format.clone();
+            }
+
+            // Levels: use the new levels if provided, otherwise use the existing levels or default
+            if let Some(levels) = options.levels {
+                state.options.levels = Some(levels);
+            } else if state.options.levels.is_none() {
+                state.options.levels = default_options.levels.clone();
+            }
+
+            // Level: use the new level if provided, otherwise use the existing level or default to "info"
+            if let Some(level) = options.level {
+                state.options.level = Some(level);
+            } else if state.options.level.is_none() {
+                state.options.level = default_options.level.clone();
+            }
+
+            // Add all transports we have been provided
+            if let Some(transports) = options.transports {
+                state.options.transports = Some(transports);
+            }
+        }
+
+        // Process buffered entries with new configuration
+        // Self::process_buffered_entries(&mut state);
     }
 
     /*pub fn configure(&mut self, options: Option<LoggerOptions>) {
