@@ -135,14 +135,37 @@ impl Logger {
         }
     }
 
-    fn is_level_enabled(levels: &CustomLevels, configured_level: &str, entry_level: &str) -> bool {
-        let given_level_value = levels.get_severity(entry_level);
-        let configured_level_value = levels.get_severity(configured_level);
+    fn is_level_enabled(entry_level: &str, options: &LoggerOptions) -> bool {
+        let levels = options.levels.clone().unwrap_or_default();
+        let global_level = options.level.as_deref().unwrap_or("info");
 
-        match (given_level_value, configured_level_value) {
-            (Some(given), Some(configured)) => configured >= given,
-            _ => false,
+        // Return false if we can't get severity for the entry level or global level
+        let entry_level_value = match levels.get_severity(entry_level) {
+            Some(value) => value,
+            None => return false,
+        };
+
+        let global_level_value = match levels.get_severity(global_level) {
+            Some(value) => value,
+            None => return false,
+        };
+
+        // If no transports are defined, fall back to the global level comparison
+        if let Some(transports) = options.get_transports() {
+            // Return true if any transport's level is prioritized and matches the severity
+            return transports.iter().any(|transport| {
+                match transport
+                    .get_level()
+                    .and_then(|level| levels.get_severity(level))
+                {
+                    Some(transport_level_value) => transport_level_value >= entry_level_value,
+                    None => global_level_value >= entry_level_value,
+                }
+            });
         }
+
+        // Fallback to global level check if no transports
+        global_level_value >= entry_level_value
     }
 
     fn format_message(
