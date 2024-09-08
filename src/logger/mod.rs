@@ -248,16 +248,6 @@ impl Logger {
         LoggerBuilder::new()
     }
 
-    /*pub fn configure(&self, new_options: Option<LoggerOptions>) {
-        if new_options.is_none() {
-            return;
-        } else {
-            let _ = self
-                .sender
-                .send(LogMessage::Configure(new_options.unwrap()));
-        }
-    }*/
-
     pub fn configure(&self, new_options: Option<LoggerOptions>) {
         let mut state = self.shared_state.write().unwrap();
 
@@ -299,46 +289,6 @@ impl Logger {
         // Process buffered entries with new configuration
         // Self::process_buffered_entries(&mut state);
     }
-
-    /*pub fn configure(&mut self, options: Option<LoggerOptions>) {
-        // Reset to original defaults
-        /*let default_options = LoggerOptions::default();
-        self.level = default_options.level.unwrap_or_default();
-        self.levels = CustomLevels::new(default_options.levels.unwrap_or_default());
-        self.transports = default_options.transports.unwrap_or_default();
-        self.format = default_options.format.unwrap_or_else(|| json());*/
-        /* let mut opts = self.options.lock().unwrap();
-        if let Some(new_opts) = options.clone() {
-            if let Some(level) = new_opts.level {
-                opts.level = Some(level);
-            }
-            if let Some(levels) = new_opts.levels {
-                opts.levels = Some(levels);
-            }
-            if let Some(transports) = new_opts.transports {
-                opts.transports = Some(transports);
-            }
-            if let Some(format) = new_opts.format {
-                opts.format = Some(format);
-            }
-        }*/
-        // Apply new options if provided
-        if let Some(opts) = options {
-            if let Some(level) = opts.level {
-                self.level = level;
-            }
-            if let Some(levels) = opts.levels {
-                self.levels = CustomLevels::new(levels);
-            }
-            if let Some(transports) = opts.transports {
-                self.transports = transports;
-            }
-            if let Some(format) = opts.format {
-                self.format = format;
-            }
-        }
-        *self = Logger::new(options)
-    }*/
 
     pub fn default() -> &'static Mutex<Logger> {
         &DEFAULT_LOGGER
