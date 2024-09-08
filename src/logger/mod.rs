@@ -6,17 +6,13 @@ mod logger_options;
 pub mod transports;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use custom_levels::CustomLevels;
 use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
 use std::collections::VecDeque;
-//use std::collections::HashMap;
-//use std::ops::Deref;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-//use transports::Transport;
 use winston_transport::LogQuery;
 
 #[derive(Debug)]
@@ -32,40 +28,13 @@ struct SharedState {
 }
 
 pub struct Logger {
-    //levels: CustomLevels,
-    //format: Format,
-    //level: String,
-    // transports: Vec<Arc<dyn Transport + Send + Sync>>,
     worker_thread: Option<thread::JoinHandle<()>>,
     sender: Sender<LogMessage>,
-    //buffer: Arc<Mutex<Vec<LogEntry>>>, // Buffer to store log messages
     shared_state: Arc<RwLock<SharedState>>,
 }
 
 impl Logger {
     pub fn new(options: Option<LoggerOptions>) -> Self {
-        /*let options = options.unwrap_or_default();
-        let options_for_worker = Arc::new(Mutex::new(options.clone()));
-        let levels = CustomLevels::new(options.levels.unwrap_or_default());
-        let level = options.level.unwrap_or_default();
-        let transports = options.get_transports().unwrap_or_default();
-        let format = options.get_format().unwrap();
-        //.unwrap_or_else(|| logger_options::DebugFormat(json()));
-
-        let (sender, receiver) = unbounded();
-        let buffer = Arc::new(Mutex::new(Vec::new()));
-
-        let transports_clone = transports.clone();
-        let levels_clone = levels.clone();
-        let level_clone = level.clone();
-
-        let options_clone = Arc::clone(&options_for_worker);
-        let buffer_clone = Arc::clone(&buffer);
-        let format_clone = format.clone();
-        let shared_state = Arc::new(RwLock::new(SharedState {
-            options,
-            buffer: Vec::new(),
-        }));*/
         let options = options.unwrap_or_default();
         let (sender, receiver) = unbounded();
         let shared_state = Arc::new(RwLock::new(SharedState {
@@ -78,94 +47,16 @@ impl Logger {
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
             //println!("Worker thread starting..."); // Debug print
-            Self::worker_loop(
-                receiver,
-                // transports_clone,
-                //buffer_clone,
-                //  format_clone,
-                //  levels_clone,
-                //  level_clone,
-                // options_clone,
-                worker_shared_state,
-            );
+            Self::worker_loop(receiver, worker_shared_state);
             //println!("Worker thread finished."); // Debug print
         });
 
         Logger {
-            //levels,
-            // format,
-            //level,
-            //transports,
-            //log_sender: sender,
             worker_thread: Some(worker_thread),
             sender,
-            //buffer,
             shared_state,
         }
     }
-
-    /*fn process_logs(
-        receiver: Receiver<LogMessage>,
-        transports: Vec<Arc<dyn Transport + Send + Sync>>,
-        buffer: Arc<Mutex<Vec<LogEntry>>>,
-        default_format: Format,
-        levels: CustomLevels,
-        level: String,
-        options: Arc<Mutex<LoggerOptions>>,
-    ) {
-        /*for message in receiver {
-            match message {
-                LogMessage::Entry(entry) => {
-                    // Add entry to buffer
-                    let mut buf = buffer.lock().unwrap();
-                    buf.push(entry);
-                    while let Some(entry) = buf.pop() {
-                        Self::process_entry(&entry, &transports, &default_format, &levels, &level);
-                    }
-                }
-                //LogMessage::Shutdown => break,
-                LogMessage::Shutdown => {
-                    // Process remaining buffer before shutdown
-                    let mut buf = buffer.lock().unwrap();
-                    while let Some(entry) = buf.pop() {
-                        Self::process_entry(&entry, &transports, &default_format, &levels, &level);
-                        println!("Processed log entry during shutdown: {:?}", entry);
-                    }
-                    break;
-                }
-            }
-        }*/
-        loop {
-            match receiver.recv().unwrap() {
-                LogMessage::Entry(entry) => {
-                    let mut buf = buffer.lock().unwrap();
-                    buf.push(entry);
-                    Self::process_buffered_entries(
-                        // &transports,
-                        &mut buf,
-                        // &default_format,
-                        //&levels,
-                        // &level,
-                        &options,
-                    );
-                }
-                LogMessage::Shutdown => {
-                    let mut buf = buffer.lock().unwrap();
-                    Self::process_buffered_entries(
-                        // &transports,
-                        &mut buf,
-                        //&default_format,
-                        //&levels,
-                        //&level,
-                        &options,
-                    );
-                    break;
-                }
-            }
-        }
-
-        println!("Logger worker thread shutting down...");
-    }*/
 
     fn worker_loop(receiver: Receiver<LogMessage>, shared_state: Arc<RwLock<SharedState>>) {
         for message in receiver {
@@ -214,24 +105,6 @@ impl Logger {
             }
         }
     }
-    /*fn process_buffered_entries(
-        //transports: &[Arc<dyn Transport + Send + Sync>],
-        buffer: &mut Vec<LogEntry>,
-        // default_format: &Format,
-        //levels: &CustomLevels,
-        //level: &String,
-        options: &Arc<Mutex<LoggerOptions>>,
-    ) {
-        let options = options.lock().unwrap();
-        let levels = CustomLevels::new(options.levels.clone().unwrap_or_default());
-        let format = options.format.clone().unwrap_or_else(|| json());
-        let level = options.level.clone().unwrap_or_default();
-        let transports = options.transports.clone().unwrap_or_default();
-
-        while let Some(entry) = buffer.pop() {
-            Self::process_entry(&entry, &transports, &format, &levels, &level);
-        }
-    }*/
 
     fn process_buffered_entries(state: &mut SharedState) {
         while let Some(entry) = state.buffer.pop_front() {
@@ -239,43 +112,10 @@ impl Logger {
         }
     }
 
-    /*fn process_entry(
-        entry: &LogEntry,
-        transports: &[Arc<dyn Transport + Send + Sync>],
-        default_format: &Format,
-        levels: &CustomLevels,
-        level: &String,
-    ) {
-        if !Self::is_level_enabled_static(&levels, &level, &entry.level) {
-            return;
-        }
-
-        if entry.message.is_empty() && entry.meta.is_empty() {
-            return;
-        }
-
-        if transports.is_empty() {
-            eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}",entry.message);
-            return;
-        }
-
-        for transport in transports {
-            if let Some(formatted_message) =
-                Self::format_message_static(entry, transport.get_format(), default_format)
-            {
-                transport.log(&formatted_message, &entry.level);
-            } else {
-                println!("Did not format message");
-            }
-        }
-        println!("Processed log entry: {:?}", entry);
-    }*/
     fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
-        let levels = options.levels.clone().unwrap_or_default();
-        let level = options.level.as_deref().unwrap_or("info");
         let format = options.get_format().cloned().unwrap_or_else(|| json());
 
-        if !Self::is_level_enabled(&levels, level, &entry.level) {
+        if !Self::is_level_enabled(&entry.level, options) {
             return;
         }
 
@@ -341,95 +181,9 @@ impl Logger {
         Ok(results)
     }
 
-    /*fn is_level_enabled_static(
-        levels: &CustomLevels,
-        configured_level: &str,
-        entry_level: &str,
-    ) -> bool {
-        let given_level_value = levels.get_severity(entry_level);
-        let configured_level_value = levels.get_severity(configured_level);
-
-        if given_level_value.is_none() || configured_level_value.is_none() {
-            return false;
-        }
-
-        configured_level_value.unwrap() >= given_level_value.unwrap()
-    }
-
-    fn format_message_static(
-        entry: &LogEntry,
-        format: Option<&Format>,
-        default_format: &Format,
-    ) -> Option<String> {
-        let converted_entry = convert_log_entry(entry);
-
-        // Apply the provided format if available, otherwise use the default format
-        let format_to_use = format.unwrap_or(default_format);
-        format_to_use
-            .transform(converted_entry, None)
-            .map(|entry| entry.message)
-    }*/
-
-    /*pub fn is_level_enabled(&self, level: &str) -> bool {
-        let given_level_value = self.get_level_severity(level);
-        if given_level_value.is_none() {
-            return false;
-        }
-
-        let configured_level_value = self.get_level_severity(&self.level);
-        if configured_level_value.is_none() {
-            return false;
-        }
-
-        if self.transports.is_empty() {
-            return configured_level_value.unwrap() >= given_level_value.unwrap();
-        }
-
-        self.transports.iter().any(|transport| {
-            let transport_level_value = transport
-                .get_level()
-                .and_then(|transport_level| self.get_level_severity(transport_level))
-                .unwrap_or(configured_level_value.unwrap());
-            transport_level_value >= given_level_value.unwrap()
-        })
-    }
-
-    fn get_level_severity(&self, level: &str) -> Option<u8> {
-        self.levels.get_severity(level)
-    }*/
-
-    /*pub fn log(&self, entry: LogEntry) {
-        self.log_async(entry);
-    }*/
-
     pub fn log(&self, entry: LogInfo) {
         let _ = self.sender.send(LogMessage::Entry(entry));
     }
-
-    /*pub fn log_sync(&self, entry: LogEntry) {
-            if entry.message.is_empty() && entry.meta.is_empty() {
-                return;
-            }
-
-            if !self.is_level_enabled(&entry.level) {
-                return;
-            }
-
-            for transport in &self.transports {
-                if let Some(formatted_message) = self.format_message(&entry, transport.get_format()) {
-                    transport.log(&formatted_message, &entry.level);
-                }
-            }
-        }
-    */
-    /*pub fn log_async(&self, entry: LogEntry) {
-        println!("Sending log message: {:?}", entry);
-        //let _ = self.sender.send(LogMessage::Entry(entry));
-        let result = self.sender.send(LogMessage::Entry(entry));
-        if result.is_err() {
-            println!("Failed to send log message!");
-        }
-    }*/
 
     pub fn close(&mut self) {
         let _ = self.sender.send(LogMessage::Shutdown); // Send shutdown signal
@@ -464,24 +218,6 @@ impl Logger {
         let mut logger = DEFAULT_LOGGER.lock().unwrap();
         logger.close();
     }
-
-    /*fn format_message(
-        &self,
-        entry: &LogEntry,
-        transport_format: Option<&Format>,
-    ) -> Option<String> {
-        let converted_entry = convert_log_entry(entry);
-
-        // Apply the transport-specific format if provided
-        let formatted_entry = if let Some(format) = transport_format {
-            format.transform(converted_entry.clone(), None)
-        } else {
-            // Otherwise, use the default logger format
-            self.format.transform(converted_entry.clone(), None)
-        };
-
-        formatted_entry.map(|entry| entry.message)
-    }*/
 
     pub fn builder() -> LoggerBuilder {
         LoggerBuilder::new()
@@ -535,21 +271,6 @@ impl Logger {
             }
         }
         *self = Logger::new(options)
-    }*/
-
-    /*pub fn query(&self, options: &LogQuery) -> Result<Vec<LogEntry>, String> {
-        let mut results = Vec::new();
-
-        for transport in &self.transports {
-            if let Some(queryable_transport) = transport.as_queryable() {
-                match queryable_transport.query(options) {
-                    Ok(mut logs) => results.append(&mut logs),
-                    Err(e) => return Err(format!("Query failed: {}", e)),
-                }
-            }
-        }
-
-        Ok(results)
     }*/
 
     pub fn default() -> &'static Mutex<Logger> {
