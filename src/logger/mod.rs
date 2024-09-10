@@ -287,7 +287,7 @@ impl Logger {
         }
 
         // Process buffered entries with new configuration
-        // Self::process_buffered_entries(&mut state);
+        Self::process_buffered_entries(&mut state);
     }
 
     pub fn default() -> &'static Mutex<Logger> {
