@@ -322,17 +322,12 @@ create_log_methods!(info, warn, error, debug, trace);
 lazy_static! {
     static ref DEFAULT_LOGGER: Mutex<Logger> = Mutex::new(Logger::new(None));
 }
-/*lazy_static! {
-    static ref DEFAULT_LOGGER: Logger = Logger::new(None);
-}*/
 
 // Global logging functions
 pub fn log(entry: LogInfo) {
-    //init_logger();
     DEFAULT_LOGGER.lock().unwrap().log(entry);
 }
 
 pub fn configure(options: Option<LoggerOptions>) {
     DEFAULT_LOGGER.lock().unwrap().configure(options);
-    // DEFAULT_LOGGER.configure(options);
 }
