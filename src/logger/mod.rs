@@ -327,12 +327,9 @@ lazy_static! {
 }*/
 
 // Global logging functions
-pub fn log(level: &str, message: &str) {
+pub fn log(entry: LogInfo) {
     //init_logger();
-    DEFAULT_LOGGER
-        .lock()
-        .unwrap()
-        .log(LogInfo::new(level, message));
+    DEFAULT_LOGGER.lock().unwrap().log(entry);
 }
 
 pub fn configure(options: Option<LoggerOptions>) {
