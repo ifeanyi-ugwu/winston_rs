@@ -331,3 +331,17 @@ pub fn log(entry: LogInfo) {
 pub fn configure(options: Option<LoggerOptions>) {
     DEFAULT_LOGGER.lock().unwrap().configure(options);
 }
+
+#[macro_export]
+macro_rules! log {
+      ($level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+        let entry = LogInfo::new(stringify!($level), $message)
+            $(.add_meta($key, $value))*;
+        $crate::log(entry);
+    }};
+     ($logger:expr, $level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+        let entry = LogInfo::new(stringify!($level), $message)
+            $(.add_meta($key, $value))*;
+        $logger.log(entry);
+    }};
+}

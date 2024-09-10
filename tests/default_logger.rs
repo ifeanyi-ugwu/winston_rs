@@ -26,6 +26,32 @@ fn test_default_logger() {
     Logger::shutdown();
 }
 
+use winston::log;
+#[test]
+fn test_new_macros() {
+    configure(Some(
+        LoggerOptions::new()
+            .level("debug")
+            .add_transport(Console::new(None))
+            .format(format::combine(vec![format::timestamp(), format::json()])),
+    ));
+
+    // Basic usage
+    log!(info, "Hello, world!");
+
+    // With key-value pairs
+    log!(warn,"User logged in", "user_id" => 123, "ip" => "192.168.1.1");
+
+    // With explicit logger
+    let custom_logger = Logger::builder()
+        .add_transport(Console::new(None))
+        .level("debug")
+        .build();
+    log!(custom_logger, debug, "Custom logger message");
+
+    Logger::shutdown();
+}
+
 #[test]
 fn test_default_logger_macros() {
     log_info!("This is an info message");
