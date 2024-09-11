@@ -10,8 +10,9 @@ use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
+use parking_lot::RwLock;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use std::thread;
 use winston_transport::LogQuery;
 
@@ -62,7 +63,7 @@ impl Logger {
         for message in receiver {
             match message {
                 LogMessage::Entry(entry) => {
-                    let mut state = shared_state.write().unwrap();
+                    let mut state = shared_state.write();
                     if state
                         .options
                         .get_transports()
@@ -78,7 +79,7 @@ impl Logger {
                     }
                 }
                 LogMessage::Configure(new_options) => {
-                    let mut state = shared_state.write().unwrap();
+                    let mut state = shared_state.write();
                     //state.options = new_options;
                     // Update only the provided options
                     if let Some(level) = new_options.level {
@@ -100,7 +101,7 @@ impl Logger {
                 }
                 //LogMessage::Shutdown => break,
                 LogMessage::Shutdown => {
-                    let mut state = shared_state.write().unwrap();
+                    let mut state = shared_state.write();
                     Self::process_buffered_entries(&mut state);
                     break;
                 }
@@ -181,7 +182,7 @@ impl Logger {
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
-        let state = self.shared_state.read().unwrap();
+        let state = self.shared_state.read();
         let mut results = Vec::new();
 
         // First, query the buffered entries
@@ -240,7 +241,9 @@ impl Logger {
     /// - In the context of global loggers initialized with `lazy_static!`, the `Drop` implementation might not be guaranteed to run if the global logger is not explicitly closed before the application exits. This can lead to unprocessed log entries if the application terminates abruptly. Hence, the `shutdown` method is crucial for ensuring that all log messages are properly handled.
     pub fn shutdown() {
         // Call close method which will send shutdown signal and join the worker thread
-        let mut logger = DEFAULT_LOGGER.lock().unwrap();
+        // let mut logger = DEFAULT_LOGGER.lock().unwrap();
+        //logger.close();
+        let mut logger = DEFAULT_LOGGER.write();
         logger.close();
     }
 
@@ -249,7 +252,7 @@ impl Logger {
     }
 
     pub fn configure(&self, new_options: Option<LoggerOptions>) {
-        let mut state = self.shared_state.write().unwrap();
+        let mut state = self.shared_state.write();
 
         // Clear existing transports
         state.options.transports = Some(Vec::new());
@@ -290,8 +293,9 @@ impl Logger {
         Self::process_buffered_entries(&mut state);
     }
 
-    pub fn default() -> &'static Mutex<Logger> {
-        &DEFAULT_LOGGER
+    pub fn default(
+    ) -> parking_lot::lock_api::RwLockReadGuard<'static, parking_lot::RawRwLock, Logger> {
+        DEFAULT_LOGGER.read()
     }
 }
 
@@ -320,16 +324,22 @@ create_log_methods!(info, warn, error, debug, trace);
 
 // Global logger implementation
 lazy_static! {
-    static ref DEFAULT_LOGGER: Mutex<Logger> = Mutex::new(Logger::new(None));
+    static ref DEFAULT_LOGGER: RwLock<Logger> = RwLock::new(Logger::new(None));
 }
 
 // Global logging functions
 pub fn log(entry: LogInfo) {
-    DEFAULT_LOGGER.lock().unwrap().log(entry);
+    //DEFAULT_LOGGER.lock().unwrap().log(entry);
+    //let logger = DEFAULT_LOGGER.read();
+    let logger = Logger::default();
+    logger.log(entry);
 }
 
 pub fn configure(options: Option<LoggerOptions>) {
-    DEFAULT_LOGGER.lock().unwrap().configure(options);
+    //DEFAULT_LOGGER.lock().unwrap().configure(options);
+    //let logger = DEFAULT_LOGGER.write();
+    let logger = Logger::default();
+    logger.configure(options);
 }
 
 #[macro_export]
