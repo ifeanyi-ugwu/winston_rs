@@ -5,7 +5,7 @@ mod logger_builder;
 mod logger_options;
 pub mod transports;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
@@ -19,10 +19,11 @@ use winston_transport::LogQuery;
 #[derive(Debug)]
 pub enum LogMessage {
     Entry(LogInfo),
-    Configure(LoggerOptions),
+    Configure(Option<LoggerOptions>),
     Shutdown,
 }
 
+#[derive(Debug)]
 struct SharedState {
     options: LoggerOptions,
     buffer: VecDeque<LogInfo>,
@@ -37,6 +38,7 @@ pub struct Logger {
 impl Logger {
     pub fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
+        //let (sender, receiver) = bounded(1024);
         let (sender, receiver) = unbounded();
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
@@ -80,7 +82,8 @@ impl Logger {
                 }
                 LogMessage::Configure(new_options) => {
                     let mut state = shared_state.write();
-                    //state.options = new_options;
+
+                    /*//state.options = new_options;
                     // Update only the provided options
                     if let Some(level) = new_options.level {
                         state.options.level = Some(level);
@@ -94,7 +97,10 @@ impl Logger {
                     if let Some(format) = new_options.format {
                         state.options.format = Some(format);
                     }
-                    // Add any other options that need to be configurable
+                    // Add any other options that need to be configurable*/
+
+                    // Apply the new configuration
+                    Self::reconfigure(new_options, &mut state);
 
                     // Process buffered entries with new configuration
                     Self::process_buffered_entries(&mut state);
@@ -208,7 +214,16 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogInfo) {
-        let _ = self.sender.send(LogMessage::Entry(entry));
+        //let _ = self.sender.send(LogMessage::Entry(entry));
+        /*observation: using sender.send,though it blocks makes the global logger way faster,
+        faster than even created instances. this is because messages was being dropped
+        sender.send was used in conjunction with bounded channel it can lead to lower mem usage */
+        /*see if i can trade a slight increased memory usage for unbounded channel and ensure it is
+        always delivering messages TODO: check what winstonjs did */
+        if let Err(_) = self.sender.try_send(LogMessage::Entry(entry)) {
+            // Channel is full, handle accordingly (e.g., drop message or block)
+            println!("channel full") //what i  really don't want is the users bothering about all this management, the best option should be handled by winston, otherwise give them control only when necessary: too much configurability can lead to confusion(I observed this even when using the original winstonjs library)
+        }
     }
 
     pub fn close(&mut self) {
@@ -240,6 +255,7 @@ impl Logger {
     /// **Note:**
     /// - In the context of global loggers initialized with `lazy_static!`, the `Drop` implementation might not be guaranteed to run if the global logger is not explicitly closed before the application exits. This can lead to unprocessed log entries if the application terminates abruptly. Hence, the `shutdown` method is crucial for ensuring that all log messages are properly handled.
     pub fn shutdown() {
+        println!("shutting down global logger");
         // Call close method which will send shutdown signal and join the worker thread
         // let mut logger = DEFAULT_LOGGER.lock().unwrap();
         //logger.close();
@@ -252,7 +268,9 @@ impl Logger {
     }
 
     pub fn configure(&self, new_options: Option<LoggerOptions>) {
-        let mut state = self.shared_state.write();
+        let _ = self.sender.send(LogMessage::Configure(new_options));
+
+        /*let mut state = self.shared_state.write().unwrap();
 
         // Clear existing transports
         state.options.transports = Some(Vec::new());
@@ -290,7 +308,60 @@ impl Logger {
         }
 
         // Process buffered entries with new configuration
-        Self::process_buffered_entries(&mut state);
+        Self::process_buffered_entries(&mut state);*/
+    }
+
+    fn reconfigure(new_options: Option<LoggerOptions>, state: &mut SharedState) {
+        // Clear existing transports if new options don't provide any
+        // state.options.transports = Some(Vec::new());
+        state.options.transports = new_options
+            .clone()
+            .and_then(|opts| opts.transports) // Use new transports if provided
+            .or_else(|| Some(Vec::new())); // Otherwise, clear transports by setting it to an empty Vec
+
+        // Create a new default options instance
+        let default_options = LoggerOptions::default();
+
+        // Apply new options if provided
+        if let Some(options) = new_options {
+            // Format: use the new format if provided, otherwise use the existing format or default to JSON
+            /*if let Some(format) = options.format {
+                state.options.format = Some(format);
+            } else if state.options.format.is_none() {
+                state.options.format = default_options.format.clone();
+            }*/
+            state.options.format = options
+                .format
+                .or(state.options.format.take())
+                .or(default_options.format);
+
+            // Levels: use the new levels if provided, otherwise use the existing levels or default
+            /*if let Some(levels) = options.levels {
+                state.options.levels = Some(levels);
+            } else if state.options.levels.is_none() {
+                state.options.levels = default_options.levels.clone();
+            }*/
+            state.options.levels = options
+                .levels
+                .or(state.options.levels.take())
+                .or(default_options.levels);
+
+            // Level: use the new level if provided, otherwise use the existing level or default to "info"
+            /*if let Some(level) = options.level {
+                state.options.level = Some(level);
+            } else if state.options.level.is_none() {
+                state.options.level = default_options.level.clone();
+            }*/
+            state.options.level = options
+                .level
+                .or(state.options.level.take())
+                .or(default_options.level);
+
+            // Add all transports we have been provided
+            /*if let Some(transports) = options.transports {
+                state.options.transports = Some(transports);
+            }*/
+        }
     }
 
     pub fn default(
@@ -301,9 +372,9 @@ impl Logger {
 
 impl Drop for Logger {
     fn drop(&mut self) {
-        //println!("Dropping Logger!"); // Debug print
+        println!("Dropping Logger!"); // Debug print
         self.close();
-        // println!("Logger dropped"); // Debug print
+        println!("Logger dropped"); // Debug print
     }
 }
 
@@ -354,4 +425,40 @@ macro_rules! log {
             $(.add_meta($key, $value))*;
         $logger.log(entry);
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_buffering_when_no_transports() {
+        let logger = Logger::new(None);
+
+        // Log messages with no transports configured
+        logger.log(LogInfo::new("info", "Test message 1"));
+        logger.log(LogInfo::new("info", "Test message 2"));
+
+        // Check that messages are in the buffer
+        let state = logger.shared_state.read();
+        println!("{:?}", state.buffer);
+        assert_eq!(state.buffer.len(), 2);
+    }
+
+    #[test]
+    fn test_processing_buffered_entries() {
+        let logger = Logger::new(None);
+
+        // Log messages with no transports configured
+        logger.log(LogInfo::new("info", "Test message 1"));
+
+        // Configure logger with transports
+        logger.configure(Some(
+            LoggerOptions::new().add_transport(transports::Console::new(None)),
+        ));
+
+        // Ensure buffered messages are processed
+        let state = logger.shared_state.read();
+        assert_eq!(state.buffer.len(), 0); // Buffer should be empty if messages were processed
+    }
 }

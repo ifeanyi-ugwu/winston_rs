@@ -26,6 +26,32 @@ fn test_default_logger() {
     Logger::shutdown();
 }
 
+#[test]
+fn test_default_logger_static_method() {
+    let logger = Logger::default();
+    logger.info("This use the default configuration");
+    logger.info("This is the second that uses the default configuration to check queue order");
+
+    configure(Some(
+        LoggerOptions::new()
+            .level("debug")
+            .add_transport(Console::new(None))
+            .format(format::combine(vec![format::timestamp(), format::json()])),
+    ));
+
+    logger.info("This will use the new configuration");
+
+    // Wait for a short period to ensure all messages are processed
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    //Logger::shutdown();
+    /*
+    without the shutdown the Logger::default() method and the macros act the same in the sense that
+    not all messages are processed,
+    but the macros makes sure to process all the message when the shutdown is called
+    this is unlike the Logger::default() that causes the application to be stuck*/
+}
+
 use winston::log;
 #[test]
 fn test_new_macros() {

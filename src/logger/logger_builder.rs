@@ -17,11 +17,13 @@ impl LoggerBuilder {
         }
     }
 
+    /// Sets the logging level for the logger.
     pub fn level<T: Into<String>>(mut self, level: T) -> Self {
         self.options.level = Some(level.into());
         self
     }
 
+    /// Sets the log format for the logger.
     pub fn format(mut self, format: Format) -> Self {
         self.options.format = Some(DebugFormat(format));
         self
@@ -34,6 +36,8 @@ impl LoggerBuilder {
             .push(Arc::new(transport));
         self
     }*/
+
+    /// Adds a single transport to the existing list of transports.
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
         if self.options.transports.is_none() {
             self.options.transports = Some(Vec::new());

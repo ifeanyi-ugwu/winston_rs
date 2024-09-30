@@ -2,6 +2,7 @@ use super::{logger_levels::LoggerLevels, transports::transport::Transport};
 use logform::{json, Format};
 use std::{collections::HashMap, fmt};
 
+#[derive(Clone)]
 pub struct DebugFormat(pub Format);
 
 impl fmt::Debug for DebugFormat {
@@ -10,12 +11,12 @@ impl fmt::Debug for DebugFormat {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LoggerOptions {
     pub levels: Option<LoggerLevels>,
     pub format: Option<DebugFormat>,
     pub level: Option<String>,
-    pub transports: Vec<Transport>,
+    //pub transports: Vec<Transport>,
 }
 
 impl LoggerOptions {
@@ -33,10 +34,10 @@ impl LoggerOptions {
         self
     }
 
-    pub fn transports(mut self, transports: Vec<Transport>) -> Self {
+    /* pub fn transports(mut self, transports: Vec<Transport>) -> Self {
         self.transports = transports;
         self
-    }
+    }*/
 
     pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
         self.levels = Some(LoggerLevels::new(levels));
@@ -53,7 +54,7 @@ impl Default for LoggerOptions {
         LoggerOptions {
             levels: Some(LoggerLevels::default()),
             level: Some("info".to_string()),
-            transports: Vec::new(),
+            //transports: Vec::new(),
             format: Some(DebugFormat(json())),
         }
     }

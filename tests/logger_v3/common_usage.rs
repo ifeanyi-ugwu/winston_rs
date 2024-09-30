@@ -1,5 +1,6 @@
 use std::{fs::File, io};
 
+use logform::LogInfo;
 //use logform::json;
 use winston::logger_v3::{transports::transport::Transport, Logger};
 
@@ -33,8 +34,10 @@ fn test_common_usage() {
     logger.add_transport(console_transport);
 
     // Log some messages
-    logger.log("Log message to file and console".to_string());
-    logger.log("Another log message".to_string());
+    //logger.log("Log message to file and console".to_string());
+    // logger.log("Another log message".to_string());
+    logger.log(LogInfo::new("info", "Log message to file and console"));
+    logger.log(LogInfo::new("info", "Another log message"));
 }
 
 /*#[test]

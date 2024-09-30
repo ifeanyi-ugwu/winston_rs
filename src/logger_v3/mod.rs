@@ -1,15 +1,14 @@
-mod logger_builder;
+//mod logger_builder;
 mod logger_levels;
 mod logger_options;
 pub mod transports;
 
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
-use crossbeam_utils::thread as cb_thread;
 //use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 //use logger_builder::LoggerBuilder;
 pub use logger_options::LoggerOptions;
-//use parking_lot::RwLock;
+use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -33,22 +32,22 @@ struct SharedState {
 pub struct Logger {
     //worker_thread: Option<thread::JoinHandle<()>>,
     //sender: Sender<LogMessage>,
-    //shared_state: Arc<RwLock<SharedState>>,
+    shared_state: Arc<RwLock<SharedState>>,
     transports: Arc<Mutex<Vec<Transport>>>,
     //sender: Sender<String>,
-    sender: Option<Sender<String>>,
+    sender: Option<Sender<LogInfo>>,
     worker_handle: Option<JoinHandle<()>>,
 }
 
 impl Logger {
     pub fn new(options: Option<LoggerOptions>) -> Self {
-        //let options = options.unwrap_or_default();
+        let options = options.unwrap_or_default();
         //let (sender, receiver) = bounded(1024);
         let (sender, receiver) = unbounded();
-        /*let shared_state = Arc::new(RwLock::new(SharedState {
+        let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
-        }));*/
+        }));
 
         // let worker_shared_state = Arc::clone(&shared_state);
 
@@ -66,7 +65,7 @@ impl Logger {
         let mut logger = Logger {
             // worker_thread: Some(worker_thread),
             //sender,
-            // shared_state,
+            shared_state,
             sender: Some(sender),
             transports,
             worker_handle: None,
@@ -82,60 +81,49 @@ impl Logger {
         transports.push(transport);
     }
 
-    /*fn start_worker_thread(&self, receiver: Receiver<String>) {
-        let transports = &self.shared_state.read().options.transports;
-        thread::spawn(move || {
-            for message in receiver {
-                // let transports = transports.lock().unwrap();
-                for transport in transports.iter() {
-                    transport.log(message);
-                }
-            }
-        });
-    }*/
-
-    fn start_worker_thread(&self, receiver: Receiver<String>) -> JoinHandle<()> {
+    fn start_worker_thread(&self, receiver: Receiver<LogInfo>) -> JoinHandle<()> {
+        let shared_state = Arc::clone(&self.shared_state);
         let transports = Arc::clone(&self.transports);
 
         let mut pool = Pool::new(1);
 
         // Spawn a background thread to listen for log messages
         thread::spawn(move || {
-            for message in receiver {
+            for log_info in receiver {
+                let state = shared_state.read();
+                if !Self::is_level_enabled(&log_info.level, &state.options) {
+                    continue;
+                }
+
                 let transports = transports.lock().unwrap();
-                /*failure:
-                where n is number of messages and Tt, it a the number of total threads for the transports, i.e 1 * number of transports.
-                for n messages, n * Tt number of threads is created and destroyed. the result is better memory, better speed but highly CPU intensive
-                I rather trade memory to CPU power for just logging. solution is not ideal
-                */
-                // Use scoped threads to log to each transport in parallel
-                /*cb_thread::scope(|scope| {
-                    for transport in transports.iter() {
-                        let message_clone = message.clone();
-                        scope.spawn(move |_| {
-                            transport.log(message_clone); // Write logs in parallel
-                        });
-                    }
-                })
-                .unwrap(); // Handle errors*/
 
                 // Use the thread pool to execute the logging in parallel
                 pool.scoped(|scoped| {
                     for transport in transports.iter() {
-                        let message_clone = message.clone();
+                        let entry_clone = log_info.clone();
                         scoped.execute(move || {
-                            transport.log(message_clone); // Write logs in parallel
+                            let formatted_message = Self::format_message(
+                                &entry_clone,
+                                transport.get_format(),
+                                &logform::json(),
+                            );
+                            if let Some(formatted_message) = formatted_message {
+                                transport.log(formatted_message.message); // Write logs in parallel
+                            }
                         });
                     }
                 });
             }
-
-            // Optional: Flush remaining transports after all messages are processed
-            //let transports = transports.lock().unwrap();
-            //for transport in transports.iter() {
-            //    transport.flush().unwrap(); // Ensure everything is flushed
-            //}
         })
+    }
+
+    fn format_message(
+        entry: &LogInfo,
+        transport_format: Option<&Format>,
+        default_format: &Format,
+    ) -> Option<LogInfo> {
+        let format_to_use = transport_format.unwrap_or(default_format);
+        format_to_use.transform(entry.clone(), None)
     }
 
     /*fn worker_loop(receiver: Receiver<LogMessage>, shared_state: Arc<RwLock<SharedState>>) {
@@ -257,15 +245,6 @@ impl Logger {
                 Ok(results)
             }
         */
-        /* pub fn close(&mut self) {
-            let _ = self.sender.send(LogMessage::Shutdown); // Send shutdown signal
-            if let Some(thread) = self.worker_thread.take() {
-                //thread.join().unwrap();
-                if let Err(e) = thread.join() {
-                    eprintln!("Error joining worker thread: {:?}", e);
-                }
-            }
-        }*/
 
         /// Gracefully shuts down the logger by:
         ///
@@ -302,22 +281,54 @@ impl Logger {
             state.options = new_options.unwrap_or_else(|| LoggerOptions::default());
         }
     */
-    /*pub fn log(&self, entry: LogInfo) {
-        //! doing this here shades off the about 49% memory usage and drops the performance by about 93.89%
-        //! for predictability, handle it in the thread so that if memory usage becomes an issue they can set channel size and use bounded channel
-        /*if !Self::is_level_enabled(&entry.level, &self.shared_state.read().options) {
-            return;
+
+    pub fn log(&self, entry: LogInfo) {
+        if let Some(ref sender) = self.sender {
+            let _ = sender.send(entry);
+        }
+    }
+
+    fn is_level_enabled(entry_level: &str, options: &LoggerOptions) -> bool {
+        let levels = options.levels.clone().unwrap_or_default();
+        let global_level = options.level.as_deref().unwrap_or("info");
+
+        let entry_level_value = match levels.get_severity(entry_level) {
+            Some(value) => value,
+            None => return false,
+        };
+
+        let global_level_value = match levels.get_severity(global_level) {
+            Some(value) => value,
+            None => return false,
+        };
+
+        // If no transports are defined, fall back to the global level comparison
+        /*if !options.transports.is_empty() {
+            // Return true if any transport's level is prioritized and matches the severity
+            return options.transports.iter().any(|transport| {
+                match transport
+                    .get_level()
+                    .and_then(|level| levels.get_severity(level))
+                {
+                    Some(transport_level_value) => transport_level_value >= entry_level_value,
+                    None => global_level_value >= entry_level_value,
+                }
+            });
         }*/
 
-        //let _ = self.sender.try_send(LogMessage::Entry(entry));
-    }*/
+        // Fallback to global level check if no transports
+        global_level_value >= entry_level_value
+    }
 
-    /*pub fn log(&self, message: String) {
-        self.sender.send(message).unwrap(); // Send log to worker thread
-    }*/
-    pub fn log(&self, message: String) {
-        if let Some(ref sender) = self.sender {
-            sender.send(message).unwrap(); // Send the message to the channel
+    pub fn close(&mut self) {
+        // Take the sender out, which closes the channel
+        self.sender.take(); // Dropping the sender closes the channel
+
+        // Wait for the worker thread to finish processing
+        if let Some(handle) = self.worker_handle.take() {
+            if let Err(e) = handle.join() {
+                eprintln!("Error joining worker thread: {:?}", e);
+            }
         }
     }
 
@@ -333,15 +344,7 @@ impl Logger {
 
 impl Drop for Logger {
     fn drop(&mut self) {
-        // Take the sender out, which closes the channel
-        self.sender.take(); // Dropping the sender closes the channel
-
-        // Wait for the worker thread to finish processing
-        if let Some(handle) = self.worker_handle.take() {
-            if let Err(e) = handle.join() {
-                eprintln!("Error joining worker thread: {:?}", e);
-            }
-        }
+        self.close();
     }
 }
 
@@ -358,9 +361,9 @@ macro_rules! create_log_methods {
         impl Logger {
             $(
                 pub fn $level(&self, message: &str) {
-                    //let log_entry = LogInfo::new(stringify!($level), message);
-                    //self.log(log_entry);
-                    self.log(message.to_string());
+                    let log_entry = LogInfo::new(stringify!($level), message);
+                    self.log(log_entry);
+                   // self.log(message.to_string());
                 }
             )*
         }

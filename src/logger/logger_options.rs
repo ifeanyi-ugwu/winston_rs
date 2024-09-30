@@ -92,12 +92,12 @@ impl LoggerOptions {
         self
     }
 
-    // Helper method to get the actual Format
+    /// Retrieves the actual `Format` instance.
     pub fn get_format(&self) -> Option<&Format> {
         self.format.as_ref().map(|df| &df.0)
     }
 
-    // Helper method to get the actual Transports
+    /// Retrieves the actual `Transports`.
     pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport + Send + Sync>>> {
         self.transports
             .as_ref()

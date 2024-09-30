@@ -22,10 +22,10 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn transports(mut self, transports: Vec<Transport>) -> Self {
+    /*pub fn transports(mut self, transports: Vec<Transport>) -> Self {
         self.options.transports = transports;
         self
-    }
+    }*/
 
     pub fn build(self) -> Logger {
         Logger::new(Some(self.options))
