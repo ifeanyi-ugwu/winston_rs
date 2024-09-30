@@ -1,3 +1,5 @@
+mod common;
+
 use winston::{
     create_logger,
     format::{align, colorize, combine, json, simple, timestamp, Format, LogInfo},
@@ -16,7 +18,8 @@ fn test_default_logger() {
 
 #[test]
 fn test_custom_logger() {
-    let file_transport = transports::File::builder().filename("test_log.log").build();
+    let log_file_path = "test_log.log";
+    let file_transport = transports::File::builder().filename(log_file_path).build();
 
     let custom_logger = Logger::builder()
         .level("debug")
@@ -42,8 +45,11 @@ fn test_custom_logger() {
     let info = LogInfo::new("info", "hi").add_meta("meta", serde_json::json!("s"));
     custom_logger.log(info);
     custom_logger.error("nope");
-    custom_logger.info("")
+    custom_logger.info("");
     // Add assertions or checks if needed
+
+    // Clean up after test
+    common::delete_file_if_exists(log_file_path);
 }
 
 #[test]

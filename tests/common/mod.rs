@@ -1,5 +1,5 @@
-use logform::LogInfo;
 use std::{thread, time::Duration};
+use winston::format::{Format, LogInfo};
 use winston_transport::Transport;
 
 pub struct DelayedTransport {
@@ -27,7 +27,7 @@ impl Transport for DelayedTransport {
         None
     }
 
-    fn get_format(&self) -> Option<&crate::format::Format> {
+    fn get_format(&self) -> Option<&Format> {
         None
     }
 
@@ -39,4 +39,16 @@ impl Transport for DelayedTransport {
 pub fn generate_random_filename() -> String {
     let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
     format!("test_log_{}.log", timestamp)
+}
+
+use std::fs;
+use std::path::Path;
+
+pub fn delete_file_if_exists(file_path: &str) {
+    let path = Path::new(file_path);
+    if path.exists() {
+        fs::remove_file(path).unwrap_or_else(|err| {
+            eprintln!("Failed to delete file {}: {}", file_path, err);
+        });
+    }
 }
