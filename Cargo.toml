@@ -14,15 +14,11 @@ categories = ["development-tools::debugging"]
 [dependencies]
 chrono = "0.4.38"
 crossbeam-channel = "0.5.13"
-crossbeam-utils = "0.8.20"
 lazy_static = "1.5.0"
 logform = "0.1.4"
-once_cell = "1.19.0"
 parking_lot = "0.12.3"
-scoped_threadpool = "0.1.9"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
-tokio = { version = "1.40.0", features = ["rt", "sync", "rt-multi-thread"] }
 winston_transport = { version = "0.1.1" }
 
 [dev-dependencies]
@@ -35,11 +31,3 @@ harness = false
 
 [profile.bench]
 debug = true
-
-[[test]]
-name = "logger_v2"
-path = "tests/logger_v2/common_usage.rs"
-
-[[test]]
-name = "logger_v3"
-path = "tests/logger_v3/common_usage.rs"
