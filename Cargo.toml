@@ -24,7 +24,7 @@ scoped_threadpool = "0.1.9"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
 tokio = { version = "1.40.0", features = ["full"] }
-winston_transport = { version = "0.1.1" }
+winston_transport = { version = "0.1.2" }
 
 [dev-dependencies]
 criterion = "0.5.1"
