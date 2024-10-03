@@ -1,9 +1,6 @@
-use super::{
-    logger_options::{DebugFormat, DebugTransport},
-    Logger, LoggerOptions,
-};
+use super::{Logger, LoggerOptions};
 use logform::Format;
-use std::sync::Arc;
+use std::collections::HashMap;
 use winston_transport::Transport;
 
 pub struct LoggerBuilder {
@@ -18,31 +15,22 @@ impl LoggerBuilder {
     }
 
     pub fn level<T: Into<String>>(mut self, level: T) -> Self {
-        self.options.level = Some(level.into());
+        self.options = self.options.level(level);
         self
     }
 
     pub fn format(mut self, format: Format) -> Self {
-        self.options.format = Some(DebugFormat(format));
+        self.options = self.options.format(format);
         self
     }
 
-    /*pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
-        self.options
-            .transports
-            .get_or_insert_with(Vec::new)
-            .push(Arc::new(transport));
-        self
-    }*/
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
-        if self.options.transports.is_none() {
-            self.options.transports = Some(Vec::new());
-        }
-        self.options
-            .transports
-            .as_mut()
-            .unwrap()
-            .push(DebugTransport(Arc::new(transport)));
+        self.options = self.options.add_transport(transport);
+        self
+    }
+
+    pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
+        self.options = self.options.levels(levels);
         self
     }
 

@@ -3,17 +3,7 @@ use logform::{json, Format};
 use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;
 
-// We'll use a wrapper type for Format to implement Debug
-#[derive(Clone)]
-pub struct DebugFormat(pub Format);
-
-impl fmt::Debug for DebugFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Format")
-    }
-}
-
-// We'll use a wrapper type for Transport to implement Debug
+// Wrapper type for Transport to implement Debug
 pub struct DebugTransport(pub Arc<dyn Transport + Send + Sync>);
 
 impl fmt::Debug for DebugTransport {
@@ -31,7 +21,7 @@ impl Clone for DebugTransport {
 #[derive(Debug, Clone)]
 pub struct LoggerOptions {
     pub levels: Option<CustomLevels>,
-    pub format: Option<DebugFormat>,
+    pub format: Option<Format>,
     pub level: Option<String>,
     pub transports: Option<Vec<DebugTransport>>,
 }
@@ -47,8 +37,8 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `level` - A string slice that represents the logging level.
-    pub fn level(mut self, level: &str) -> Self {
-        self.level = Some(level.to_string());
+    pub fn level<T: Into<String>>(mut self, level: T) -> Self {
+        self.level = Some(level.into());
         self
     }
 
@@ -58,7 +48,7 @@ impl LoggerOptions {
     ///
     /// * `format` - The log format to be used.
     pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(DebugFormat(format));
+        self.format = Some(format);
         self
     }
 
@@ -72,12 +62,8 @@ impl LoggerOptions {
     ///
     /// * `transport` - A single transport to be added to the current list.
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
-        if self.transports.is_none() {
-            self.transports = Some(Vec::new());
-        }
         self.transports
-            .as_mut()
-            .unwrap()
+            .get_or_insert_with(Vec::new)
             .push(DebugTransport(Arc::new(transport)));
         self
     }
@@ -90,11 +76,6 @@ impl LoggerOptions {
     pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
         self.levels = Some(CustomLevels::new(levels));
         self
-    }
-
-    // Helper method to get the actual Format
-    pub fn get_format(&self) -> Option<&Format> {
-        self.format.as_ref().map(|df| &df.0)
     }
 
     // Helper method to get the actual Transports
@@ -118,7 +99,7 @@ impl Default for LoggerOptions {
             levels: Some(CustomLevels::default()),
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
-            format: Some(DebugFormat(json())),
+            format: Some(json()),
         }
     }
 }

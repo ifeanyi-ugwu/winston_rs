@@ -116,7 +116,7 @@ impl Logger {
     }
 
     fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
-        let format = options.get_format().cloned().unwrap_or_else(|| json());
+        let format = options.format.clone().unwrap_or_else(|| json());
 
         if !Self::is_level_enabled(&entry.level, options) {
             return;
