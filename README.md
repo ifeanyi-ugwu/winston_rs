@@ -93,7 +93,6 @@ fn main() {
     logger.warn("Test warning");
 
     // For testing purpose, Sleep for a short duration to ensure logs are flushed to the file so the query will retrieve them
-    // logging messages and immediately querying logs is highly unlikely
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let query = LogQuery::new()
