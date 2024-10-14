@@ -98,7 +98,7 @@ fn test_backpressure_drop_oldest_strategy() {
     }
 
     // Allow time for processing
-    thread::sleep(Duration::from_millis(150));
+    thread::sleep(Duration::from_millis(200));
 
     let logs = logs.lock().unwrap();
     assert_eq!(
@@ -126,7 +126,7 @@ fn test_backpressure_drop_current_strategy() {
     }
 
     // Allow time for processing
-    thread::sleep(Duration::from_millis(150));
+    thread::sleep(Duration::from_millis(200));
 
     let logs = logs.lock().unwrap();
     assert_eq!(
