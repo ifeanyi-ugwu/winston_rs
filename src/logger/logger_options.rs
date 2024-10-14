@@ -24,6 +24,8 @@ pub struct LoggerOptions {
     pub format: Option<Format>,
     pub level: Option<String>,
     pub transports: Option<Vec<DebugTransport>>,
+    pub channel_capacity: Option<usize>,
+    pub backpressure_strategy: Option<BackpressureStrategy>,
 }
 
 impl LoggerOptions {
@@ -100,6 +102,15 @@ impl Default for LoggerOptions {
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
             format: Some(json()),
+            channel_capacity: Some(1024),
+            backpressure_strategy: Some(BackpressureStrategy::Block),
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum BackpressureStrategy {
+    DropOldest,
+    Block,
+    DropCurrent,
 }

@@ -1,4 +1,4 @@
-use super::{Logger, LoggerOptions};
+use super::{BackpressureStrategy, Logger, LoggerOptions};
 use logform::Format;
 use std::collections::HashMap;
 use winston_transport::Transport;
@@ -31,6 +31,16 @@ impl LoggerBuilder {
 
     pub fn levels(mut self, levels: HashMap<String, u8>) -> Self {
         self.options = self.options.levels(levels);
+        self
+    }
+
+    pub fn channel_capacity(mut self, capacity: usize) -> Self {
+        self.options.channel_capacity = Some(capacity);
+        self
+    }
+
+    pub fn backpressure_strategy(mut self, strategy: BackpressureStrategy) -> Self {
+        self.options.backpressure_strategy = Some(strategy);
         self
     }
 

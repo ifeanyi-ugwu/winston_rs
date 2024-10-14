@@ -5,10 +5,11 @@ mod logger_builder;
 mod logger_options;
 pub mod transports;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use logger_builder::LoggerBuilder;
+pub use logger_options::BackpressureStrategy;
 pub use logger_options::LoggerOptions;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
@@ -31,24 +32,29 @@ struct SharedState {
 pub struct Logger {
     worker_thread: Option<thread::JoinHandle<()>>,
     sender: Sender<LogMessage>,
+    receiver: Arc<Receiver<LogMessage>>,
     shared_state: Arc<RwLock<SharedState>>,
 }
 
 impl Logger {
     pub fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
-        let (sender, receiver) = unbounded();
+        let capacity = options.channel_capacity.unwrap_or(1024);
+        let (sender, receiver) = bounded(capacity);
+
+        let shared_receiver = Arc::new(receiver);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
         }));
 
+        let worker_receiver = Arc::clone(&shared_receiver);
         let worker_shared_state = Arc::clone(&shared_state);
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
             //println!("Worker thread starting..."); // Debug print
-            Self::worker_loop(receiver, worker_shared_state);
+            Self::worker_loop(worker_receiver, worker_shared_state);
             //println!("Worker thread finished."); // Debug print
         });
 
@@ -56,11 +62,12 @@ impl Logger {
             worker_thread: Some(worker_thread),
             sender,
             shared_state,
+            receiver: shared_receiver,
         }
     }
 
-    fn worker_loop(receiver: Receiver<LogMessage>, shared_state: Arc<RwLock<SharedState>>) {
-        for message in receiver {
+    fn worker_loop(receiver: Arc<Receiver<LogMessage>>, shared_state: Arc<RwLock<SharedState>>) {
+        for message in receiver.iter() {
             match message {
                 LogMessage::Entry(entry) => {
                     let mut state = shared_state.write();
@@ -208,7 +215,66 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogInfo) {
+        match self.sender.try_send(LogMessage::Entry(entry.clone())) {
+            Ok(_) => {}
+            Err(TrySendError::Full(_)) => {
+                self.handle_full_channel(entry);
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                eprintln!("[winston] Channel is disconnected. Unable to log message.");
+            }
+        }
+    }
+
+    pub fn logi(&self, entry: LogInfo) {
         let _ = self.sender.send(LogMessage::Entry(entry));
+    }
+
+    /// Handles backpressure strategies when the channel is full.
+    fn handle_full_channel(&self, entry: LogInfo) {
+        let strategy = {
+            let state = self.shared_state.read();
+            state
+                .options
+                .backpressure_strategy
+                .clone()
+                .unwrap_or(BackpressureStrategy::Block)
+        };
+
+        match strategy {
+            BackpressureStrategy::DropOldest => {
+                self.drop_oldest_and_retry(entry);
+            }
+            BackpressureStrategy::Block => {
+                // Block until the channel has space
+                let _ = self.sender.send(LogMessage::Entry(entry));
+            }
+            BackpressureStrategy::DropCurrent => {
+                eprintln!(
+                    "[winston] Dropping current log entry due to full channel: {}",
+                    entry.message
+                );
+            }
+        }
+    }
+
+    /// Drops the oldest log message from the channel and attempts to send the new one.
+    fn drop_oldest_and_retry(&self, entry: LogInfo) {
+        // Try to remove the oldest message from the channel using the shared receiver
+        if let Ok(oldest) = self.receiver.try_recv() {
+            eprintln!(
+                "[winston] Dropped oldest log entry due to full channel: {:?}",
+                oldest
+            );
+        }
+
+        // Now try to send the new entry again
+        if let Err(e) = self.sender.try_send(LogMessage::Entry(entry.clone())) {
+            eprintln!(
+                "[winston] Failed to log after dropping oldest. Dropping current message: {}",
+                entry.message
+            );
+        }
     }
 
     pub fn close(&mut self) {
