@@ -1,4 +1,3 @@
-pub mod create_logger;
 mod custom_levels;
 mod log_macros;
 mod logger_builder;
