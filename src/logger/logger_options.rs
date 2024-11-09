@@ -80,6 +80,26 @@ impl LoggerOptions {
         self
     }
 
+    /// Sets the channel capacity for the logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - An `usize` that defines the capacity of the channel.
+    pub fn channel_capacity(mut self, capacity: usize) -> Self {
+        self.channel_capacity = Some(capacity);
+        self
+    }
+
+    /// Sets the backpressure strategy for the logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The backpressure strategy to apply when the channel is full.
+    pub fn backpressure_strategy(mut self, strategy: BackpressureStrategy) -> Self {
+        self.backpressure_strategy = Some(strategy);
+        self
+    }
+
     // Helper method to get the actual Transports
     pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport + Send + Sync>>> {
         self.transports
@@ -96,6 +116,9 @@ impl Default for LoggerOptions {
     /// - The logging level set to "info".
     /// - No default transports.
     /// - The JSON format for log entries.
+    /// - A channel capacity of 1024.
+    /// - A backpressure strategy set to `BackpressureStrategy::Block`, meaning the logger will block on overflow until space is available.
+
     fn default() -> Self {
         LoggerOptions {
             levels: Some(LoggerLevels::default()),
