@@ -1,14 +1,13 @@
 mod common;
 
 use winston::{
-    create_logger,
     format::{align, colorize, combine, json, simple, timestamp, Format, LogInfo},
     transports, Logger,
 };
 
 #[test]
 fn test_default_logger() {
-    let default_logger = create_logger(None);
+    let default_logger = Logger::new(None);
     default_logger.info("Testing default logger");
     // Add assertions or checks if needed
 

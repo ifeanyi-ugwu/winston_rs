@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
-pub struct CustomLevels {
+pub struct LoggerLevels {
     levels: HashMap<String, u8>,
 }
 
-impl CustomLevels {
+impl LoggerLevels {
     pub fn new(levels: HashMap<String, u8>) -> Self {
-        CustomLevels { levels }
+        LoggerLevels { levels }
     }
 
     pub fn get_severity(&self, key: &str) -> Option<u8> {
@@ -15,7 +15,7 @@ impl CustomLevels {
     }
 }
 
-impl Default for CustomLevels {
+impl Default for LoggerLevels {
     fn default() -> Self {
         let mut default_levels = HashMap::new();
         default_levels.insert("error".to_string(), 0);
@@ -24,6 +24,6 @@ impl Default for CustomLevels {
         default_levels.insert("debug".to_string(), 3);
         default_levels.insert("trace".to_string(), 4);
 
-        CustomLevels::new(default_levels)
+        LoggerLevels::new(default_levels)
     }
 }
