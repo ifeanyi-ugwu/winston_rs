@@ -39,6 +39,7 @@ fn test_logging_and_querying() {
 
     let logs = results.unwrap();
 
+    assert!(!logs.is_empty(), "No logs were found. Logs: {:?}", logs);
     for (index, log) in logs.iter().enumerate() {
         println!("{:?}", log);
         assert_eq!(
@@ -54,5 +55,5 @@ fn test_logging_and_querying() {
     }
 
     // Cleanup: remove the temporary file
-    std::fs::remove_file(temp_path).expect("Failed to remove temporary file");
+    common::delete_file_if_exists(&temp_path)
 }
