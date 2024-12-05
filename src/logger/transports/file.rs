@@ -199,6 +199,17 @@ impl Queryable for FileTransport {
     }
 }
 
+impl Drop for FileTransport {
+    fn drop(&mut self) {
+        // Attempt to flush any remaining logs before dropping
+        if let Ok(mut file) = self.file.lock() {
+            if let Err(e) = file.flush() {
+                eprintln!("Error flushing log file during drop: {}", e);
+            }
+        }
+    }
+}
+
 pub struct FileTransportBuilder {
     level: Option<String>,
     format: Option<Format>,
