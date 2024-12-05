@@ -131,25 +131,22 @@ impl Queryable for FileTransport {
         let reader = BufReader::new(file);
 
         let mut results = Vec::new();
-        let mut line_count = 0;
 
         // Determine the start and limit values
         let start = query.start.unwrap_or(0);
         let limit = query.limit.unwrap_or(usize::MAX);
 
-        for line in reader.lines() {
-            let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
+        for (index, line) in reader.lines().enumerate() {
+            let line = line.map_err(|e| format!("Failed to read line {}: {}", index, e))?;
             if let Some(entry) = self.parse_log_entry(&line) {
-                //println!("parsed entry {:?}", entry);
                 if query.matches(&entry) {
                     // Skip lines until the start position
-                    if line_count >= start {
+                    if index >= start {
                         results.push(entry);
                     }
-                    line_count += 1;
 
                     // Stop reading if the limit is reached
-                    if results.len() >= limit {
+                    if results.len() >= limit && limit != 0 {
                         break;
                     }
                 }
