@@ -25,13 +25,13 @@ fn test_logging_and_querying() {
 
     // Define query to retrieve logs
     let query = LogQuery::new()
-        //.order(Order::Descending)
-        // .from(Utc.with_ymd_and_hms(2024, 9, 28, 0, 0, 0).unwrap())
-        // .until(Utc.with_ymd_and_hms(2024, 8, 29, 23, 59, 59).unwrap())
+        //.order("desc")
+        //.from("2 hours ago")
+        //.until("now")
         .levels(vec!["error"]);
-    // .limit(10)
-    // .search_term("t")
-    // .fields(vec!["message"]);
+    //.limit(10)
+    //.search_term("t")
+    //.fields(vec!["message", "level"]);
 
     // Execute the query
     let results = logger.query(&query);
