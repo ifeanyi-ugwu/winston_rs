@@ -21,3 +21,17 @@ macro_rules! log_error {
 }
 
 // ... Add more macros for other log levels
+
+#[macro_export]
+macro_rules! log {
+      ($level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+        let entry = $crate::format::LogInfo::new(stringify!($level), $message)
+            $(.add_meta($key, $value))*;
+        $crate::log(entry);
+    }};
+     ($logger:expr, $level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+        let entry = $crate::format::LogInfo::new(stringify!($level), $message)
+            $(.add_meta($key, $value))*;
+        $logger.log(entry);
+    }};
+}
