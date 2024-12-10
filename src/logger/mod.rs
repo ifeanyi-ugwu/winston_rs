@@ -286,32 +286,6 @@ impl Logger {
         }
     }
 
-    /// Gracefully shuts down the logger by:
-    ///
-    /// 1. **Sending a Shutdown Signal:**
-    ///    Sends a `Shutdown` message to the internal worker thread to indicate that no more log entries should be processed. This ensures that the worker thread stops accepting new log messages.
-    ///
-    /// 2. **Processing Remaining Entries:**
-    ///    The worker thread processes any remaining log entries in the buffer before terminating. This step is crucial to avoid losing log messages that were enqueued before the shutdown signal was sent.
-    ///
-    /// 3. **Joining the Worker Thread:**
-    ///    Waits for the worker thread to complete its processing and exit. This ensures that all buffered log entries are handled and that the thread is cleanly terminated.
-    ///
-    /// **Rationale:**
-    /// - **Message Integrity:** Guarantees that all log messages in the buffer are processed, preventing data loss.
-    /// - **Resource Management:** Helps in releasing resources like memory and thread handles, preventing leaks and ensuring clean termination of the logger.
-    /// - **Thread Safety:** Ensures that the worker thread completes its task before the logger is fully dropped, avoiding potential issues with incomplete processing.
-    ///
-    /// **Note:**
-    /// - In the context of global loggers initialized with `lazy_static!`, the `Drop` implementation might not be guaranteed to run if the global logger is not explicitly closed before the application exits. This can lead to unprocessed log entries if the application terminates abruptly. Hence, the `shutdown` method is crucial for ensuring that all log messages are properly handled.
-    pub fn shutdown() {
-        // Call close method which will send shutdown signal and join the worker thread
-        // let mut logger = DEFAULT_LOGGER.lock().unwrap();
-        //logger.close();
-        let mut logger = DEFAULT_LOGGER.write();
-        logger.close();
-    }
-
     pub fn builder() -> LoggerBuilder {
         LoggerBuilder::new()
     }
@@ -396,6 +370,32 @@ pub fn log(entry: LogInfo) {
 pub fn configure(options: Option<LoggerOptions>) {
     //DEFAULT_LOGGER.lock().unwrap().configure(options);
     DEFAULT_LOGGER.read().configure(options);
+}
+
+/// Gracefully shuts down the logger by:
+///
+/// 1. **Sending a Shutdown Signal:**
+///    Sends a `Shutdown` message to the internal worker thread to indicate that no more log entries should be processed. This ensures that the worker thread stops accepting new log messages.
+///
+/// 2. **Processing Remaining Entries:**
+///    The worker thread processes any remaining log entries in the buffer before terminating. This step is crucial to avoid losing log messages that were enqueued before the shutdown signal was sent.
+///
+/// 3. **Joining the Worker Thread:**
+///    Waits for the worker thread to complete its processing and exit. This ensures that all buffered log entries are handled and that the thread is cleanly terminated.
+///
+/// **Rationale:**
+/// - **Message Integrity:** Guarantees that all log messages in the buffer are processed, preventing data loss.
+/// - **Resource Management:** Helps in releasing resources like memory and thread handles, preventing leaks and ensuring clean termination of the logger.
+/// - **Thread Safety:** Ensures that the worker thread completes its task before the logger is fully dropped, avoiding potential issues with incomplete processing.
+///
+/// **Note:**
+/// - In the context of global loggers initialized with `lazy_static!`, the `Drop` implementation might not be guaranteed to run if the global logger is not explicitly closed before the application exits. This can lead to unprocessed log entries if the application terminates abruptly. Hence, this method is crucial for ensuring that all log messages are properly handled.
+pub fn close() {
+    // Call close method which will send shutdown signal and join the worker thread
+    // let mut logger = DEFAULT_LOGGER.lock().unwrap();
+    //logger.close();
+    let mut logger = DEFAULT_LOGGER.write();
+    logger.close();
 }
 
 #[macro_export]

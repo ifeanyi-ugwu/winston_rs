@@ -3,7 +3,7 @@ mod common;
 use common::DelayedTransport;
 use std::time::{Duration, Instant};
 use winston::{
-    configure,
+    close, configure,
     format::{self, LogInfo},
     log_error, log_info, log_warn,
     transports::Console,
@@ -23,7 +23,7 @@ fn test_default_logger() {
     ));
 
     log_info!("This will use the new configuration");
-    Logger::shutdown();
+    close();
 }
 
 use winston::log;
@@ -49,7 +49,7 @@ fn test_new_macros() {
         .build();
     log!(custom_logger, debug, "Custom logger message");
 
-    Logger::shutdown();
+    close();
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn test_default_logger_macros() {
 
     let error = "an error";
     log_error!("This is an error: {}", error);
-    Logger::shutdown();
+    close();
 }
 
 #[test]
