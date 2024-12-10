@@ -357,11 +357,6 @@ impl Logger {
         // Process buffered entries with new configuration
         Self::process_buffered_entries(&mut state);
     }
-
-    pub fn default(
-    ) -> parking_lot::lock_api::RwLockReadGuard<'static, parking_lot::RawRwLock, Logger> {
-        DEFAULT_LOGGER.read()
-    }
 }
 
 impl Drop for Logger {
@@ -395,16 +390,12 @@ lazy_static! {
 // Global logging functions
 pub fn log(entry: LogInfo) {
     //DEFAULT_LOGGER.lock().unwrap().log(entry);
-    //let logger = DEFAULT_LOGGER.read();
-    let logger = Logger::default();
-    logger.log(entry);
+    DEFAULT_LOGGER.read().log(entry);
 }
 
 pub fn configure(options: Option<LoggerOptions>) {
     //DEFAULT_LOGGER.lock().unwrap().configure(options);
-    //let logger = DEFAULT_LOGGER.write();
-    let logger = Logger::default();
-    logger.configure(options);
+    DEFAULT_LOGGER.read().configure(options);
 }
 
 #[macro_export]
