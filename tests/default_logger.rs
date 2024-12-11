@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use winston::{
     close, configure,
     format::{self, LogInfo},
-    log_error, log_info, log_warn,
+    log, log_error, log_info, log_warn,
     transports::Console,
     Logger, LoggerOptions,
 };
@@ -26,7 +26,6 @@ fn test_default_logger() {
     close();
 }
 
-use winston::log;
 #[test]
 fn test_new_macros() {
     configure(Some(
