@@ -24,14 +24,14 @@ macro_rules! log_error {
 
 #[macro_export]
 macro_rules! log {
-      ($level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+    ($level:ident, $message:expr $(, $key:ident = $value:expr)* $(,)?) => {{
         let entry = $crate::format::LogInfo::new(stringify!($level), $message)
-            $(.add_meta($key, $value))*;
+            $(.add_meta(stringify!($key), $value))*;
         $crate::log(entry);
     }};
-     ($logger:expr, $level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
+    ($logger:expr, $level:ident, $message:expr $(, $key:ident = $value:expr)* $(,)?) => {{
         let entry = $crate::format::LogInfo::new(stringify!($level), $message)
-            $(.add_meta($key, $value))*;
+            $(.add_meta(stringify!($key), $value))*;
         $logger.log(entry);
     }};
 }
