@@ -40,7 +40,7 @@ fn test_new_macros() {
     log!(info, "Hello, world!");
 
     // With key-value pairs
-    log!(warn,"User logged in", "user_id" => 123, "ip" => "192.168.1.1");
+    log!(warn, "User logged in", user_id = 123, ip = "192.168.1.1");
 
     // With explicit logger
     let custom_logger = Logger::builder()
