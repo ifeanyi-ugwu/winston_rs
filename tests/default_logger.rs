@@ -5,15 +5,18 @@ use std::time::{Duration, Instant};
 use winston::{
     close, configure,
     format::{self, LogInfo},
-    log, log_error, log_info, log_warn,
+    log,
     transports::Console,
     Logger, LoggerOptions,
 };
 
 #[test]
 fn test_default_logger() {
-    log_info!("This use the default configuration");
-    log_info!("This is the second that uses the default configuration to check queue order");
+    log!(info, "This use the default configuration");
+    log!(
+        info,
+        "This is the second that uses the default configuration to check queue order"
+    );
 
     configure(Some(
         LoggerOptions::new()
@@ -22,7 +25,7 @@ fn test_default_logger() {
             .format(format::combine(vec![format::timestamp(), format::json()])),
     ));
 
-    log_info!("This will use the new configuration");
+    log!(info, "This will use the new configuration");
     close();
 }
 
@@ -53,11 +56,11 @@ fn test_new_macros() {
 
 #[test]
 fn test_default_logger_macros() {
-    log_info!("This is an info message");
-    log_warn!("This is a warning");
+    log!(info, "This is an info message");
+    log!(warn, "This is a warning");
 
     let error = "an error";
-    log_error!("This is an error: {}", error);
+    log!(error, format!("This is an error: {}", error));
     close();
 }
 
@@ -65,7 +68,7 @@ fn test_default_logger_macros() {
 fn test_configure_on_custom_logger() {
     let logger = Logger::new(None);
 
-    logger.info("This is a message from the custom logger");
+    log!(logger, info, "This is a message from the custom logger");
 
     logger.configure(Some(
         LoggerOptions::new()
@@ -74,7 +77,7 @@ fn test_configure_on_custom_logger() {
             .level("debug"),
     ));
 
-    logger.info("This is a message from the custom logger");
+    log!(logger, info, "This is a message from the custom logger");
 }
 
 #[test]

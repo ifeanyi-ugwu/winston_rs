@@ -1,6 +1,6 @@
 mod common;
 
-use winston::{format, transports, LogQuery, Logger};
+use winston::{format, log, transports, LogQuery, Logger};
 
 #[test]
 fn test_logging_and_querying() {
@@ -16,9 +16,9 @@ fn test_logging_and_querying() {
         .build();
 
     // Log some messages
-    logger.info("Test message 1");
-    logger.error("Test error message");
-    logger.warn("Test warning");
+    log!(logger, info, "Test message 1");
+    log!(logger, error, "Test error message");
+    log!(logger, warn, "Test warning");
 
     // Sleep for a short duration to ensure logs are flushed to the file and the query will retrieve them
     std::thread::sleep(std::time::Duration::from_secs(1));
