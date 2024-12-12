@@ -84,6 +84,47 @@ fn main() {
 
 ---
 
+### Logging Basics
+
+#### The `log!` Macro
+
+The `log!` macro simplifies logging by combining log level, message, and optional metadata into a single call:
+
+```rust
+log!(level, "Message", key1 = value1, key2 = value2);
+```
+
+- **`level`**: Log level (`info`, `warn`, `error`, etc.).
+- **`Message`**: A string message.
+- **Optional key-value pairs**: Metadata to add context.
+
+Examples:
+
+```rust
+log!(info, "App initialized"); // Simple log
+log!(warn, "API timeout", endpoint = "/v1/data", retries = 3); // With metadata
+```
+
+You can also log directly to a specific logger:
+
+```rust
+log!(my_logger, debug, "Custom logger used", module = "auth");
+```
+
+#### How It Works
+
+The `log!` macro internally creates a `LogInfo` object and passes it to the global logger or a specified logger. It's equivalent to manually constructing and logging a `LogInfo`:
+
+```rust
+let entry = LogInfo::new("info", "App initialized")
+    .add_meta("key1", "value1")
+    .add_meta("key2", "value2");
+
+logger.log(entry); // or just `log(entry)` for the global logger.
+```
+
+The macro provides the same functionality as creating a `LogInfo` and calling the `log` method but in a more ergonomic and readable form.
+
 ## Key Concepts
 
 ### Transports
