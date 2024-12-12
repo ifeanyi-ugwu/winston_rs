@@ -22,7 +22,7 @@ cargo add winston
 
 ## Quick Start
 
-### Using the Default Logger
+### Using the Global Logger
 
 ```rust
 use winston::{Logger, LoggerOptions, close, configure, log};
@@ -41,7 +41,7 @@ fn main() {
 }
 ```
 
-`close()` ensures all log entries are processed before your application exits (only necessary for the default logger, as statics do not call `drop`).
+`close()` ensures all log entries are processed before your application exits (only necessary for the global logger, as statics do not call `drop`).
 
 ### Creating Your Own Logger
 
