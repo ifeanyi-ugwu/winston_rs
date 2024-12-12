@@ -41,7 +41,7 @@ fn main() {
 }
 ```
 
-`close()` ensures all log entries are processed before your application exits (only necessary for the global logger, as statics do not call `drop`).
+The global logger is an application-wide static reference that provides centralized logging access, requiring configuration only once to add a transport, as it starts without a default one. It eliminates the need to pass logger instances around, with functions like `log()`, `configure()` and `close()` operating directly on this global logger. Macros like `log!()` implicitly use it. Since static references don’t automatically call `drop`, `close()` is necessary to ensure all logs are processed, particularly before the application exits.
 
 ### Creating Your Own Logger
 
