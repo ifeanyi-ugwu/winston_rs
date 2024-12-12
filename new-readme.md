@@ -25,7 +25,7 @@ cargo add winston
 ### Using the Default Logger
 
 ```rust
-use winston::{Logger, LoggerOptions, close, configure, log_info, log_warn};
+use winston::{Logger, LoggerOptions, close, configure, log};
 
 fn main() {
     let new_options = LoggerOptions::new()
@@ -49,7 +49,8 @@ fn main() {
 use winston::{
     Logger,
     transports::{Console, File},
-    format::{combine, timestamp, json}
+    format::{combine, timestamp, json},
+    log
 };
 
 fn main() {
@@ -64,7 +65,7 @@ fn main() {
         .format(combine(vec![timestamp(), json()]))
         .build();
 
-    logger.info("Logging with multiple transports");
+    log!(info, "Logging with multiple transports");
 }
 ```
 
