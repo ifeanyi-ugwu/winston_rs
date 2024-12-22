@@ -301,12 +301,6 @@ let logger = Logger::new()
     .build();
 ```
 
-**Key Notes**:
-
-- **Mandatory for Queries**: A correctly formatted `timestamp` is crucial for `from` and `until` filters in log queries.
-- **Format Compatibility**: If a custom timestamp format is used, ensure it is compatible with [`dateparser`](https://docs.rs/dateparser/).
-- **No Aliases**: Avoid aliasing the `timestamp` key or altering its intended structure, as this may cause query failures.
-
 ### Runtime Reconfiguration
 
 Change logging configuration dynamically at runtime:
