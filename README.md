@@ -123,8 +123,6 @@ let entry = LogInfo::new("info", "App initialized")
 logger.log(entry); // or just `log(entry)` for the global logger.
 ```
 
-The macro provides the same functionality as creating a `LogInfo` and calling the `log` method but in a more ergonomic and readable form.
-
 ## Key Concepts
 
 ### Transports
@@ -137,7 +135,7 @@ Transports define where log messages are sent. Winston supports:
 
 ### Log Levels
 
-Winston's log levels conform to the severity ordering specified by [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424), ranked in ascending order of importance. Lower numeric values indicate more critical(important) events.
+Winston's log levels conform to the severity ordering specified by [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424), ranked in ascending order of importance. Lower numeric values indicate more critical (important) events.
 
 ```rust
 levels: {
