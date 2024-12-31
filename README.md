@@ -3,7 +3,7 @@
 ![Crates.io](https://img.shields.io/crates/v/winston)
 ![Rust](https://img.shields.io/badge/rust-%E2%9C%94-brightgreen)
 
-A high-performance, multi-transport logging library for Rust, designed for modern concurrency and extensive customization, inspired by Winston.js.
+A Winston.js-inspired logging library for Rust.
 
 ## Installation
 
