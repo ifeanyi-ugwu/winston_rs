@@ -65,7 +65,7 @@ fn main() {
         .format(combine(vec![timestamp(), json()]))
         .build();
 
-    log!(info, "Logging with multiple transports");
+    log!(logger, info, "Logging with multiple transports");
 }
 ```
 
