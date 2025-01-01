@@ -102,9 +102,6 @@ impl Transport for FileTransport {
         if let Err(e) = writeln!(file, "{}", info.message) {
             eprintln!("Failed to write to log file: {}", e);
         }
-        if let Err(e) = file.flush() {
-            eprintln!("Failed to flush log file: {}", e);
-        }
     }
 
     fn get_level(&self) -> Option<&String> {
