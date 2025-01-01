@@ -6,7 +6,7 @@ use winston::{
     close, configure,
     format::{self, LogInfo},
     log,
-    transports::Console,
+    transports::stdout,
     Logger, LoggerOptions,
 };
 
@@ -21,7 +21,7 @@ fn test_default_logger() {
     configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::combine(vec![format::timestamp(), format::json()])),
     ));
 
@@ -34,7 +34,7 @@ fn test_new_macros() {
     configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::combine(vec![format::timestamp(), format::json()])),
     ));
 
@@ -46,7 +46,7 @@ fn test_new_macros() {
 
     // With explicit logger
     let custom_logger = Logger::builder()
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
         .level("debug")
         .build();
     log!(custom_logger, debug, "Custom logger message");
@@ -72,7 +72,7 @@ fn test_configure_on_custom_logger() {
 
     logger.configure(Some(
         LoggerOptions::new()
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::simple())
             .level("debug"),
     ));
@@ -88,7 +88,7 @@ fn test_logger_non_blocking() {
     let delayed_transport = DelayedTransport::new(PROCESS_DELAY);
 
     let logger = Logger::builder()
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
         .add_transport(delayed_transport)
         .format(format::pretty_print().with_option("colorize", "true"))
         .build();

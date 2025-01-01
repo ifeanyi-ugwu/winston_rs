@@ -32,7 +32,7 @@ fn test_custom_logger() {
             align(),
             simple(),
         ]))
-        .add_transport(transports::Console::new(None))
+        .add_transport(transports::stdout())
         .add_transport(file_transport)
         .build();
 
