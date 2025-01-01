@@ -129,9 +129,40 @@ logger.log(entry); // or just `log(entry)` for the global logger.
 
 Transports define where log messages are sent. Winston supports:
 
-- **Console**: Output to `stdout` or `stderr`.
+- **WriterTransport**: A generic transport that can write to any destination implementing the `Write` trait (stdout, stderr, files, network sockets, etc.)
 - **File**: Log messages to a file.
 - **Custom**: Implement the `Transport` trait to define your own destination.
+
+#### Convenience Functions
+
+Quick transport creation for common use cases:
+
+```rust
+use winston::transports::{stdout, stderr};
+
+// Quick stdout/stderr transports
+let logger = Logger::builder()
+    .add_transport(stdout())    // Same as WriterTransport::new(io::stdout())
+    .add_transport(stderr())    // Same as WriterTransport::new(io::stderr())
+    .build();
+```
+
+Example using different writers:
+
+```rust
+use std::io;
+use winston::transports::WriterTransport;
+
+// Stdout transport
+let stdout_transport = WriterTransport::new(io::stdout());
+
+// Stderr transport
+let stderr_transport = WriterTransport::new(io::stderr());
+
+// File transport using Write
+let file = std::fs::File::create("app.log").unwrap();
+let file_transport = WriterTransport::new(file);
+```
 
 ### Log Levels
 
