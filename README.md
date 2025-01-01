@@ -306,7 +306,7 @@ Change logging configuration dynamically at runtime:
 ```rust
 use winston::{Logger, LoggerOptions, transports::Console};
 
-let logger = Logger::new(None);
+let logger = Logger::default();
 logger.configure(
     LoggerOptions::new()
         .level("debug")
