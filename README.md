@@ -25,12 +25,12 @@ cargo add winston
 ### Using the Global Logger
 
 ```rust
-use winston::{Logger, LoggerOptions, close, configure, log};
+use winston::{close, configure, log, transports::stdout, Logger, LoggerOptions};
 
 fn main() {
     let new_options = LoggerOptions::new()
         .level("debug")
-        .add_transport(Console::new(None));
+        .add_transport(stdout());
 
     configure(Some(new_options));
 
@@ -47,16 +47,16 @@ The global logger is an application-wide static reference that provides centrali
 
 ```rust
 use winston::{
+    format::{combine, json, timestamp},
+    log,
+    transports::{stdout, File},
     Logger,
-    transports::{Console, File},
-    format::{combine, timestamp, json},
-    log
 };
 
 fn main() {
     let logger = Logger::builder()
         .level("debug")
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
         .add_transport(
             File::builder()
                 .filename("app.log")
@@ -77,7 +77,7 @@ fn main() {
 | ----------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
 | `level`                 | Minimum severity of log messages to be logged                      | `info`                                             |
 | `levels`                | Severity levels for log entries.                                   | `{error: 0, warn: 1, info: 2, debug: 3, trace: 4}` |
-| `transports`            | Logging destinations (`Console`, `File`, `Custom`).                | None                                               |
+| `transports`            | Logging destinations (`stdout`, `stderr`, `File`, `Custom`).       | None                                               |
 | `format`                | Log message formatting (e.g., `json`, `timestamp`).                | `json`                                             |
 | `channel_capacity`      | Maximum size of the log message buffer.                            | `1024`                                             |
 | `backpressure_strategy` | Action when buffer is full (`Block`, `DropOldest`, `DropCurrent`). | `Block`                                            |
@@ -185,8 +185,8 @@ Each transport can define its own log level, overriding the logger level. This a
 let logger = Logger::builder()
     .level("info")  // Logger default level
     .add_transport(
-        Console::new(None)
-            .level("error")  // Console only logs error messages
+        stderr()
+            .with_level("error")  // stderr only logs error messages
     )
     .add_transport(
         File::builder()
@@ -200,7 +200,7 @@ let logger = Logger::builder()
 In this example:
 
 - The logger level is set to `info`.
-- The console transport logs only `error` messages.
+- The stderr transport logs only `error` messages.
 - The file transport logs `debug` and higher (i.e., `debug`, `info`, `warn`, and `error`).
 
 ### Formats
@@ -221,8 +221,8 @@ Each transport can have its own format, which takes precedence over the logger f
 let logger = Logger::builder()
     .format(json())  // Logger default format
     .add_transport(
-        Console::new(None)
-            .format(combine(vec![timestamp(), colored()]))  // Colorized console output
+        stdout()
+            .with_format(combine(vec![timestamp(), colored()]))  // Colorized console output
     )
     .add_transport(
         File::builder()
@@ -304,13 +304,13 @@ let logger = Logger::new()
 Change logging configuration dynamically at runtime:
 
 ```rust
-use winston::{Logger, LoggerOptions, transports::Console};
+use winston::{transports::stdout, Logger, LoggerOptions};
 
 let logger = Logger::default();
 logger.configure(
     LoggerOptions::new()
         .level("debug")
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
 );
 ```
 
