@@ -7,7 +7,7 @@ use winston::{
 
 #[test]
 fn test_default_logger() {
-    let default_logger = Logger::new(None);
+    let default_logger = Logger::default();
     log!(default_logger, info, "Testing default logger");
     // Add assertions or checks if needed
 

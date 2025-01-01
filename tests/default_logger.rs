@@ -66,7 +66,7 @@ fn test_default_logger_macros() {
 
 #[test]
 fn test_configure_on_custom_logger() {
-    let logger = Logger::new(None);
+    let logger = Logger::default();
 
     log!(logger, info, "This is a message from the custom logger");
 
