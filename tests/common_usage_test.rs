@@ -38,10 +38,10 @@ fn test_custom_logger() {
 
     log!(custom_logger, info, "Testing custom logger");
     let info = LogInfo::new("info", "")
-        .add_meta("justaword", serde_json::json!("er"))
-        .add_meta("justAnObj", serde_json::json!({}));
+        .with_meta("justaword", serde_json::json!("er"))
+        .with_meta("justAnObj", serde_json::json!({}));
     custom_logger.log(info);
-    let info = LogInfo::new("info", "hi").add_meta("meta", serde_json::json!("s"));
+    let info = LogInfo::new("info", "hi").with_meta("meta", serde_json::json!("s"));
     custom_logger.log(info);
     log!(custom_logger, error, "nope");
     log!(custom_logger, info, "");

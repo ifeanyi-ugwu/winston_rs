@@ -117,8 +117,8 @@ The `log!` macro internally creates a `LogInfo` object and passes it to the glob
 
 ```rust
 let entry = LogInfo::new("info", "App initialized")
-    .add_meta("key1", "value1")
-    .add_meta("key2", "value2");
+    .with_meta("key1", "value1")
+    .with_meta("key2", "value2");
 
 logger.log(entry); // or just `log(entry)` for the global logger.
 ```
