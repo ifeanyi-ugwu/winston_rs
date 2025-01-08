@@ -1,4 +1,5 @@
 use crate::{
+    create_log_methods,
     logger_builder::LoggerBuilder,
     logger_options::{BackpressureStrategy, LoggerOptions},
 };
@@ -383,19 +384,6 @@ impl Default for Logger {
     fn default() -> Self {
         Logger::new(None)
     }
-}
-
-macro_rules! create_log_methods {
-    ($($level:ident),*) => {
-        impl Logger {
-            $(
-                pub fn $level(&self, message: &str) {
-                    let log_entry = LogInfo::new(stringify!($level), message);
-                    self.log(log_entry);
-                }
-            )*
-        }
-    };
 }
 
 create_log_methods!(info, warn, error, debug, trace);

@@ -11,3 +11,17 @@ macro_rules! log {
         $logger.log(entry);
     }};
 }
+
+#[macro_export]
+macro_rules! create_log_methods {
+    ($($level:ident),*) => {
+        impl Logger {
+            $(
+                pub fn $level(&self, message: &str) {
+                    let log_entry = LogInfo::new(stringify!($level), message);
+                    self.log(log_entry);
+                }
+            )*
+        }
+    };
+}
