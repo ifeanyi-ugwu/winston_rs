@@ -3,7 +3,6 @@ use crate::{
     logger_options::{BackpressureStrategy, LoggerOptions},
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
 use parking_lot::RwLock;
 use std::{
@@ -400,33 +399,3 @@ macro_rules! create_log_methods {
 }
 
 create_log_methods!(info, warn, error, debug, trace);
-
-// Global logger implementation
-lazy_static! {
-    static ref DEFAULT_LOGGER: RwLock<Logger> = RwLock::new(Logger::new(None));
-}
-
-// Global logging functions
-pub fn log(entry: LogInfo) {
-    //DEFAULT_LOGGER.lock().unwrap().log(entry);
-    DEFAULT_LOGGER.read().log(entry);
-}
-
-pub fn configure(options: Option<LoggerOptions>) {
-    //DEFAULT_LOGGER.lock().unwrap().configure(options);
-    DEFAULT_LOGGER.read().configure(options);
-}
-
-pub fn close() {
-    // Call close method which will send shutdown signal and join the worker thread
-    // let mut logger = DEFAULT_LOGGER.lock().unwrap();
-    //logger.close();
-    let mut logger = DEFAULT_LOGGER.write();
-    logger.close();
-}
-
-pub fn flush() -> Result<(), String> {
-    DEFAULT_LOGGER.read().flush()?;
-
-    Ok(())
-}
