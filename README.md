@@ -25,7 +25,7 @@ cargo add winston
 ### Using the Global Logger
 
 ```rust
-use winston::{close, configure, log, transports::stdout, Logger, LoggerOptions};
+use winston::{flush, configure, log, transports::stdout, Logger, LoggerOptions};
 
 fn main() {
     let new_options = LoggerOptions::new()
@@ -37,11 +37,11 @@ fn main() {
     log!(info, "Hello, world!");
     log!(warn, "Something might be wrong.");
 
-    close();
+    flush();
 }
 ```
 
-The global logger is an application-wide static reference that provides centralized logging access, requiring configuration only once to add a transport, as it starts without a default one. It eliminates the need to pass logger instances around, with functions like `log()`, `configure()` and `close()` operating directly on this global logger. Macros like `log!()` implicitly use it. Since static references don’t automatically call `drop`, `close()` is necessary to ensure all logs are processed, particularly before the application exits.
+The global logger is an application-wide static reference that provides centralized logging access, requiring configuration only once to add a transport, as it starts without a default one. It eliminates the need to pass logger instances around, with functions like `log()`, `configure()` `close()` and `flush()` operating directly on this global logger. Macros like `log!()` implicitly use it. Since static references don’t automatically call `drop`, `flush()` is necessary to ensure all logs are processed, particularly before the application exits.
 
 ### Creating Your Own Logger
 
