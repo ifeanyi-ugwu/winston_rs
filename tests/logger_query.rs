@@ -20,8 +20,7 @@ fn test_logging_and_querying() {
     log!(logger, error, "Test error message");
     log!(logger, warn, "Test warning");
 
-    // Sleep for a short duration to ensure logs are flushed to the file and the query will retrieve them
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    let _ = logger.flush();
 
     // Define query to retrieve logs
     let query = LogQuery::new()
