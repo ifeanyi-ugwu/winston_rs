@@ -1,5 +1,4 @@
 use crate::{
-    create_log_methods,
     logger_builder::LoggerBuilder,
     logger_options::{BackpressureStrategy, LoggerOptions},
 };
@@ -385,5 +384,3 @@ impl Default for Logger {
         Logger::new(None)
     }
 }
-
-create_log_methods!(info, warn, error, debug, trace);
