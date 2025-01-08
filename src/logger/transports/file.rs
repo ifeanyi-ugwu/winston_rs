@@ -64,7 +64,7 @@ impl FileTransport {
 impl FileTransport {
     fn parse_log_entry(&self, line: &str) -> Option<LogInfo> {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
-        // println!("Parsed log entry: {:?}", parsed); // Debug print
+        //println!("Parsed log entry: {:?}", parsed); // Debug print
 
         let level = parsed["level"].as_str()?;
         let message = parsed["message"].as_str()?;
@@ -101,6 +101,14 @@ impl Transport for FileTransport {
         if let Err(e) = writeln!(file, "{}", info.message) {
             eprintln!("Failed to write to log file: {}", e);
         }
+    }
+
+    fn flush(&self) -> Result<(), String> {
+        let mut file = self.file.lock().unwrap();
+        //println!("Flushing file transport");
+
+        file.flush()
+            .map_err(|e| format!("Failed to flush file: {}", e))
     }
 
     fn get_level(&self) -> Option<&String> {
