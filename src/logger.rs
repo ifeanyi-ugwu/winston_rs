@@ -1,19 +1,16 @@
-mod log_macros;
-mod logger_builder;
-mod logger_levels;
-mod logger_options;
-pub mod transports;
-
+use crate::{
+    logger_builder::LoggerBuilder,
+    logger_options::{BackpressureStrategy, LoggerOptions},
+};
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
-use logger_builder::LoggerBuilder;
-pub use logger_options::BackpressureStrategy;
-pub use logger_options::LoggerOptions;
 use parking_lot::RwLock;
-use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Condvar, Mutex},
+    thread,
+};
 use winston_transport::LogQuery;
 
 #[derive(Debug)]
@@ -38,7 +35,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    fn new(options: Option<LoggerOptions>) -> Self {
+    pub(crate) fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
         let capacity = options.channel_capacity.unwrap_or(1024);
         let (sender, receiver) = bounded(capacity);
