@@ -201,11 +201,9 @@ impl Logger {
         // Then, query each transport
         if let Some(transports) = state.options.get_transports() {
             for transport in transports {
-                if let Some(queryable_transport) = transport.as_queryable() {
-                    match queryable_transport.query(options) {
-                        Ok(mut logs) => results.append(&mut logs),
-                        Err(e) => return Err(format!("Query failed: {}", e)),
-                    }
+                match transport.query(options) {
+                    Ok(mut logs) => results.append(&mut logs),
+                    Err(e) => return Err(format!("Query failed: {}", e)),
                 }
             }
         }

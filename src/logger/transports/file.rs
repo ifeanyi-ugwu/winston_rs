@@ -1,11 +1,10 @@
 //use std::collections::HashMap;
 use logform::{Format, LogInfo};
-use std::any::Any;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Mutex;
-use winston_transport::{LogQuery, Queryable, Transport};
+use winston_transport::{LogQuery, Transport};
 
 pub struct FileTransportOptions {
     pub level: Option<String>,
@@ -112,16 +111,6 @@ impl Transport for FileTransport {
         self.options.format.as_ref()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_queryable(&self) -> Option<&dyn Queryable> {
-        Some(self)
-    }
-}
-
-impl Queryable for FileTransport {
     fn query(&self, query: &LogQuery) -> Result<Vec<LogInfo>, String> {
         let file = File::open(self.options.filename.as_ref().unwrap())
             .map_err(|e| format!("Failed to open log file: {}", e))?;

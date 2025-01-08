@@ -285,7 +285,9 @@ let logger = Logger::builder()
 
 ### Log Querying
 
-Winston supports retrieving log entries, particularly for `Transports` that implement the `Queryable` trait.
+Winston supports retrieving log entries from transports.
+
+_To enable querying for a custom transport, override the `query` method in your `Transport` implementation._
 
 ```rust
 use winston::{Logger, LogQuery};
