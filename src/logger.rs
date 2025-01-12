@@ -1,6 +1,6 @@
 use crate::{
     logger_builder::LoggerBuilder,
-    logger_options::{BackpressureStrategy, LoggerOptions},
+    logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::{json, Format, LogInfo};
@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Condvar, Mutex},
     thread,
 };
-use winston_transport::LogQuery;
+use winston_transport::{LogQuery, Transport};
 
 #[derive(Debug)]
 pub enum LogMessage {
@@ -368,6 +368,38 @@ impl Logger {
 
         // Process buffered entries with new configuration
         Self::process_buffered_entries(&mut state);
+    }
+
+    /// Adds a transport wrapped in an Arc directly to the logger
+    pub fn add_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+        let mut state = self.shared_state.write();
+        if let Some(transports) = &mut state.options.transports {
+            transports.push(DebugTransport(transport));
+            true
+        } else {
+            state.options.transports = Some(vec![DebugTransport(transport)]);
+            true
+        }
+    }
+
+    /// Removes a transport wrapped in an Arc from the logger
+    pub fn remove_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+        let mut state = self.shared_state.write();
+
+        if let Some(transports) = &mut state.options.transports {
+            // Find the index of the transport to remove based on pointer equality
+            if let Some(index) = transports
+                .iter()
+                .position(|t| Arc::ptr_eq(&transport, &t.0))
+            {
+                transports.remove(index);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 }
 
