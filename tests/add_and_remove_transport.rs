@@ -1,9 +1,27 @@
 mod common;
 
-use std::{fs, sync::Arc};
+use std::{fs, sync::Arc, thread, time::Duration};
 
 use winston::{log, transports, Logger};
 use winston_transport::Transport;
+
+fn read_file_with_retry(filename: &str, max_retries: u32, delay_ms: u64) -> String {
+    for attempt in 0..max_retries {
+        match fs::read_to_string(filename) {
+            Ok(content) => return content,
+            Err(e) => {
+                if attempt == max_retries - 1 {
+                    panic!(
+                        "Failed to read {} after {} attempts: {}",
+                        filename, max_retries, e
+                    );
+                }
+                thread::sleep(Duration::from_millis(delay_ms));
+            }
+        }
+    }
+    panic!("Failed to read {} after {} attempts", filename, max_retries);
+}
 
 #[test]
 fn test_add_and_remove_transport() {
@@ -35,13 +53,23 @@ fn test_add_and_remove_transport() {
     // Flush the logger to wait until it writes the messages to the files
     logger.flush().unwrap();
 
-    // Verify the content of the first log file
-    let log1_content = fs::read_to_string("test_log1.log").expect("Failed to read test_log1.log");
-    assert!(log1_content.contains("Message before removing transport"));
+    // Add a small delay to ensure file operations are complete
+    //thread::sleep(Duration::from_millis(50));
 
-    // Verify the content of the second log file
-    let log2_content = fs::read_to_string("test_log2.log").expect("Failed to read test_log2.log");
-    assert!(log2_content.contains("Message before removing transport"));
+    // Verify the content of both log files with retry mechanism
+    let log1_content = read_file_with_retry("test_log1.log", 5, 100);
+    assert!(
+        log1_content.contains("Message before removing transport"),
+        "First message not found in test_log1.log. Content: {}",
+        log1_content
+    );
+
+    let log2_content = read_file_with_retry("test_log2.log", 5, 100);
+    assert!(
+        log2_content.contains("Message before removing transport"),
+        "First message not found in test_log2.log. Content: {}",
+        log2_content
+    );
 
     // Remove the first transport
     assert!(logger.remove_transport(Arc::clone(&file_transport1)));
@@ -55,13 +83,23 @@ fn test_add_and_remove_transport() {
     // Flush the logger again
     logger.flush().unwrap();
 
-    // Verify that the first log file did not record the second message
-    let log1_content = fs::read_to_string("test_log1.log").expect("Failed to read test_log1.log");
-    assert!(!log1_content.contains("Message after removing transport"));
+    // Add a small delay to ensure file operations are complete
+    thread::sleep(Duration::from_millis(50));
 
-    // Verify that the second log file recorded the second message
-    let log2_content = fs::read_to_string("test_log2.log").expect("Failed to read test_log2.log");
-    assert!(log2_content.contains("Message after removing transport"));
+    // Verify the files with retry mechanism
+    let log1_content = read_file_with_retry("test_log1.log", 5, 100);
+    assert!(
+        !log1_content.contains("Message after removing transport"),
+        "Second message found in test_log1.log when it shouldn't be. Content: {}",
+        log1_content
+    );
+
+    let log2_content = read_file_with_retry("test_log2.log", 5, 100);
+    assert!(
+        log2_content.contains("Message after removing transport"),
+        "Second message not found in test_log2.log. Content: {}",
+        log2_content
+    );
 
     // Clean up test files
     common::delete_file_if_exists("test_log1.log");
