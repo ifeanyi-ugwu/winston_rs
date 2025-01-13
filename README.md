@@ -323,7 +323,7 @@ In this example:
 
 ### Formats
 
-For advanced formatting, Winston leverages [logform](https://github.com/ifeanyi-ugwu/logform_rs).
+For advanced formatting, Winston leverages [logform](https://github.com/ifeanyi-ugwu/logform_rs), which is re-exported as `winston::format` for convenience:
 
 ```rust
 use winston::{Logger, format::{combine, timestamp, json}};
