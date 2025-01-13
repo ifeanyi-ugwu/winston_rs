@@ -1,14 +1,37 @@
 #[macro_export]
 macro_rules! log {
+    // First case: No logger, simple logging
     ($level:ident, $message:expr $(, $key:ident = $value:expr)* $(,)?) => {{
         let entry = $crate::format::LogInfo::new(stringify!($level), $message)
             $(.with_meta(stringify!($key), $value))*;
         $crate::log(entry);
     }};
+
+    // Second case: With logger and key-value metadata
     ($logger:expr, $level:ident, $message:expr $(, $key:ident = $value:expr)* $(,)?) => {{
         let entry = $crate::format::LogInfo::new(stringify!($level), $message)
             $(.with_meta(stringify!($key), $value))*;
         $logger.log(entry);
+    }};
+
+    // Third case: With logger and metadata as an expression (e.g., meta!(key1 = value1, key2 = value2))
+    ($logger:expr, $level:ident, $message:expr, $meta:expr) => {{
+        let entry = $crate::format::LogInfo::new(stringify!($level), $message);
+
+        // Iterate over the metadata and add it to the log entry
+        let entry = $meta.into_iter().fold(entry, |acc, (key, value)| acc.with_meta(key, value));
+
+        $logger.log(entry);
+    }};
+
+    // Fourth case: No logger and with metadata as an expression (e.g., meta!(key1 = value1, key2 = value2))
+    ($level:ident, $message:expr, $meta:expr) => {{
+        let entry = $crate::format::LogInfo::new(stringify!($level), $message);
+
+        // Iterate over the metadata and add it to the log entry
+        let entry = $meta.into_iter().fold(entry, |acc, (key, value)| acc.with_meta(key, value));
+
+        $crate::log(entry);
     }};
 }
 
