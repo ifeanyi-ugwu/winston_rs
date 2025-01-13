@@ -110,24 +110,42 @@ use std::collections::HashMap;
 use winston::{meta, Logger};
 
 // Define custom logging methods and macros
-winston::create_log_methods!(foo, bar, baz, foobar);
-winston::create_level_macros!(foo, bar, baz, foobar);
+winston::create_log_methods!(foo, bar, baz, foobar);  // Creates methods like logger.foo(), logger.bar(), etc.
+winston::create_level_macros!(foo, bar, baz, foobar);  // Creates macros like foo!(), bar!(), etc.
 
 let logger = Logger::builder()
-    .add_transport(stdout())
-    .levels(HashMap::from([
+    .add_transport(stdout())  // Use stdout as the logging transport
+    .levels(HashMap::from([  // Define custom log levels and their severity values
         ("foo", 0),  // Most severe
         ("bar", 1),
-        ("baz", 2)
+        ("baz", 2),
         ("foobar", 3)   // Least severe
     ]))
-    .level("bar")    // Log bar and more severe levels
-    .build();
+    .level("bar")    // Set the minimum log level to "bar" (log bar and more severe levels)
+    .build();  // Build the logger instance
 
-// Usage
+// Usage of the logger methods with various levels and metadata:
+
+// Log a message at the "foo" level with no metadata
 logger.foo("Foo-level message", None);
-logger.foobar("Foobar-level message with metadata", Some(meta!(key = "value", timestamp = 1234567890)));
+
+// Log a message at the "foobar" level with metadata (key-value pairs)
+logger.foobar(
+    "Foobar-level message with metadata",
+    Some(meta!(key = "value", timestamp = 1234567890))
+);
+
+// Use the "foobar" macro to log a message at the "foobar" level
 foobar!(logger, "Foobar-level macro logging");
+
+// with metadata
+foobar!(logger, "Foobar-level macro logging with metadata", meta!(key3 = true, key4 = 42.5));
+
+// Log a message at the "foo" level globally (no logger instance needed)
+foo!("Global log test");
+
+// Log a message at the "foo" level globally with metadata
+foo!(@global, "Another global test", meta!(key3 = true, key4 = 42.5));
 ```
 
 ## Key Concepts
