@@ -73,14 +73,14 @@ fn main() {
 
 ### Configuration Options
 
-| **Option**              | **Description**                                                    | **Default Value**                                  |
-| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
-| `level`                 | Minimum severity of log messages to be logged                      | `info`                                             |
-| `levels`                | Severity levels for log entries.                                   | `{error: 0, warn: 1, info: 2, debug: 3, trace: 4}` |
-| `transports`            | Logging destinations (`stdout`, `stderr`, `File`, `Custom`).       | None                                               |
-| `format`                | Log message formatting (e.g., `json`, `timestamp`).                | `json`                                             |
-| `channel_capacity`      | Maximum size of the log message buffer.                            | `1024`                                             |
-| `backpressure_strategy` | Action when buffer is full (`Block`, `DropOldest`, `DropCurrent`). | `Block`                                            |
+| **Option**              | **Description**                                                                                        | **Default Value**                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `level`                 | Minimum severity of log messages to be logged. Anything equal to or higher in severity will be logged. | `info`                                             |
+| `levels`                | Severity levels for log entries.                                                                       | `{error: 0, warn: 1, info: 2, debug: 3, trace: 4}` |
+| `transports`            | Logging destinations (`stdout`, `stderr`, `File`, `Custom`).                                           | None                                               |
+| `format`                | Log message formatting (e.g., `json`, `timestamp`).                                                    | `json`                                             |
+| `channel_capacity`      | Maximum size of the log message buffer.                                                                | `1024`                                             |
+| `backpressure_strategy` | Action when buffer is full (`Block`, `DropOldest`, `DropCurrent`).                                     | `Block`                                            |
 
 ---
 
