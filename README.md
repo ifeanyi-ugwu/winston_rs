@@ -11,7 +11,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-winston = "0.1"
+winston = "0.2"
 ```
 
 Alternatively, run:
