@@ -244,9 +244,9 @@ log!(error, "Appears in file only");
 log!(info, "Appears in both stdout and file");
 ```
 
-### Log Levels
+### Logging Levels
 
-Winston's log levels conform to the severity ordering specified by [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424), ranked in ascending order of importance. Lower numeric values indicate more critical (important) events.
+Winston's logging levels conform to the severity ordering specified by [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424), ranked in ascending order of importance. Lower numeric values indicate more critical (important) events.
 
 ```rust
 levels: {
@@ -258,9 +258,9 @@ levels: {
 }
 ```
 
-#### Custom Log Levels
+#### Custom Logging Levels
 
-You can define custom log levels while maintaining a numeric severity hierarchy:
+In addition to the predefined `rust`, `syslog`, and `cli` levels available in winston, you can also choose to define your own:
 
 ```rust
 use std::collections::HashMap;
