@@ -267,7 +267,7 @@ levels: {
 
 #### Custom Logging Levels
 
-In addition to the predefined `rust`, `syslog`, and `cli` levels available in winston, you can also choose to define your own:
+In addition to the predefined `rust`, `syslog`, and `cli` levels available in winston via `winston::format::config::`, you can also choose to define your own:
 
 ```rust
 use std::collections::HashMap;
