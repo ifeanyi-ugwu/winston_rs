@@ -6,8 +6,10 @@ pub struct LoggerLevels {
 }
 
 impl LoggerLevels {
-    pub fn new(levels: HashMap<String, u8>) -> Self {
-        LoggerLevels { levels }
+    pub fn new<K: Into<String>>(levels: impl IntoIterator<Item = (K, u8)>) -> Self {
+        LoggerLevels {
+            levels: levels.into_iter().map(|(k, v)| (k.into(), v)).collect(),
+        }
     }
 
     pub fn get_severity(&self, key: &str) -> Option<u8> {
@@ -17,13 +19,18 @@ impl LoggerLevels {
 
 impl Default for LoggerLevels {
     fn default() -> Self {
-        let mut default_levels = HashMap::new();
-        default_levels.insert("error".to_string(), 0);
-        default_levels.insert("warn".to_string(), 1);
-        default_levels.insert("info".to_string(), 2);
-        default_levels.insert("debug".to_string(), 3);
-        default_levels.insert("trace".to_string(), 4);
+        LoggerLevels::new([
+            ("error", 0),
+            ("warn", 1),
+            ("info", 2),
+            ("debug", 3),
+            ("trace", 4),
+        ])
+    }
+}
 
-        LoggerLevels::new(default_levels)
+impl From<LoggerLevels> for HashMap<String, u8> {
+    fn from(logger_levels: LoggerLevels) -> Self {
+        logger_levels.levels
     }
 }
