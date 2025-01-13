@@ -69,8 +69,6 @@ fn main() {
 }
 ```
 
----
-
 ### Configuration Options
 
 | **Option**              | **Description**                                                                                        | **Default Value**                                  |
@@ -81,8 +79,6 @@ fn main() {
 | `format`                | Log message formatting (e.g., `json`, `timestamp`).                                                    | `json`                                             |
 | `channel_capacity`      | Maximum size of the log message buffer.                                                                | `1024`                                             |
 | `backpressure_strategy` | Action when buffer is full (`Block`, `DropOldest`, `DropCurrent`).                                     | `Block`                                            |
-
----
 
 ### Logging Basics
 
