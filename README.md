@@ -127,15 +127,54 @@ logger.log(entry); // or just `log(entry)` for the global logger.
 
 ### Transports
 
-Transports define where log messages are sent. Winston supports:
+Transports define the destinations where log messages are written. Winston includes core transports that leverage Rust's standard I/O capabilities, with additional custom transports possible through community contributions. Each transport implements the `Transport` trait from [winston_transport](https://github.com/ifeanyi-ugwu/winston_transport_rs):
 
-- **WriterTransport**: A generic transport that can write to any destination implementing the `Write` trait (stdout, stderr, files, network sockets, etc.)
-- **File**: Log messages to a file.
-- **Custom**: Implement the `Transport` trait to define your own destination.
+```rust
+pub trait Transport: Send + Sync {
+    // Required: Handles writing log messages
+    fn log(&self, info: LogInfo);
 
-#### Convenience Functions
+    // Optional: Flushes buffered logs
+    fn flush(&self) -> Result<(), String> { Ok(()) }
 
-Quick transport creation for common use cases:
+    // Optional: Gets minimum log level
+    fn get_level(&self) -> Option<&String> { None }
+
+    // Optional: Gets format configuration
+    fn get_format(&self) -> Option<&Format> { None }
+
+    // Optional: Retrieves matching log entries
+    fn query(&self, _options: &LogQuery) -> Result<Vec<LogInfo>, String> { Ok(Vec::new()) }
+}
+```
+
+#### Built-in Transports
+
+Winston provides two core transports:
+
+##### WriterTransport
+
+A generic transport that writes to any destination implementing Rust's `Write` trait:
+
+```rust
+use std::io::{self, Write};
+use winston::transports::WriterTransport;
+
+// Write to stdout
+let stdout_transport = WriterTransport::new(io::stdout())
+    .with_level("info");
+
+// Write to a file
+let file = std::fs::File::create("app.log").unwrap();
+let file_transport = WriterTransport::new(file)
+    .with_format(json());
+
+// Write to a network socket
+let stream = std::net::TcpStream::connect("127.0.0.1:8080").unwrap();
+let network_transport = WriterTransport::new(stream);
+```
+
+There are quick `WriterTransport` creation for common use cases:
 
 ```rust
 use winston::transports::{stdout, stderr};
@@ -147,21 +186,62 @@ let logger = Logger::builder()
     .build();
 ```
 
-Example using different writers:
+##### File Transport
+
+Specialized file transport with querying capabilities for log retrieval.
+
+#### Creating Custom Transports
+
+To define a custom transport, implement the `Transport` trait and define the `log` method:
 
 ```rust
-use std::io;
-use winston::transports::WriterTransport;
+use winston::{log, LogInfo, Transport};
 
-// Stdout transport
-let stdout_transport = WriterTransport::new(io::stdout());
+struct MyCustomTransport;
 
-// Stderr transport
-let stderr_transport = WriterTransport::new(io::stderr());
+impl Transport for MyCustomTransport {
+    fn log(&self, info: LogInfo) {
+        println!("Custom transport: {}", info.message);
+    }
+}
 
-// File transport using Write
-let file = std::fs::File::create("app.log").unwrap();
-let file_transport = WriterTransport::new(file);
+fn main() {
+    let custom_transport = MyCustomTransport;
+
+    let logger = Logger::builder()
+        .add_transport(custom_transport)
+        .build();
+
+    log!(info, "This uses a custom transport!");
+}
+```
+
+#### Multiple Transports
+
+You can use multiple transports simultaneously, even of the same type. Each transport can have its own configuration:
+
+```rust
+use winston::{log, Logger, format::{json, simple}, transports::{stdout, WriterTransport}};
+use std::fs::File;
+
+let logger = Logger::builder()
+    // Log all info and above to stdout with simple formatting
+    .add_transport(
+        stdout()
+            .with_level("info")
+            .with_format(simple())
+    )
+    // Log all error to file with JSON formatting
+    .add_transport(
+        WriterTransport::new(File::create("app.log").unwrap())
+            .with_level("error")
+            .with_format(json())
+    )
+    .build();
+
+// Usage
+log!(error, "Appears in file only");
+log!(info, "Appears in both stdout and file");
 ```
 
 ### Log Levels
