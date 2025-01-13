@@ -2,17 +2,17 @@ mod common;
 
 use winston::{
     format::{align, colorize, combine, json, simple, timestamp, Format, LogInfo},
-    transports, Logger,
+    log, transports, Logger,
 };
 
 #[test]
 fn test_default_logger() {
-    let default_logger = Logger::new(None);
-    default_logger.info("Testing default logger");
+    let default_logger = Logger::default();
+    log!(default_logger, info, "Testing default logger");
     // Add assertions or checks if needed
 
     let custom_logger = Logger::builder().format(Format::new(|_, _| None)).build();
-    custom_logger.info("hi there")
+    log!(custom_logger, info, "hi there")
 }
 
 #[test]
@@ -32,19 +32,19 @@ fn test_custom_logger() {
             align(),
             simple(),
         ]))
-        .add_transport(transports::Console::new(None))
+        .add_transport(transports::stdout())
         .add_transport(file_transport)
         .build();
 
-    custom_logger.info("Testing custom logger");
+    log!(custom_logger, info, "Testing custom logger");
     let info = LogInfo::new("info", "")
-        .add_meta("justaword", serde_json::json!("er"))
-        .add_meta("justAnObj", serde_json::json!({}));
+        .with_meta("justaword", serde_json::json!("er"))
+        .with_meta("justAnObj", serde_json::json!({}));
     custom_logger.log(info);
-    let info = LogInfo::new("info", "hi").add_meta("meta", serde_json::json!("s"));
+    let info = LogInfo::new("info", "hi").with_meta("meta", serde_json::json!("s"));
     custom_logger.log(info);
-    custom_logger.error("nope");
-    custom_logger.info("");
+    log!(custom_logger, error, "nope");
+    log!(custom_logger, info, "");
     // Add assertions or checks if needed
 
     // Clean up after test
@@ -64,6 +64,10 @@ fn test_logger_with_only_file_transport() {
         .format(combine(vec![timestamp(), json()]))
         .build();
 
-    logger_with_only_file_transport.info("Testing logger with only file transport")
+    log!(
+        logger_with_only_file_transport,
+        info,
+        "Testing logger with only file transport"
+    )
     // Add assertions or checks if needed
 }

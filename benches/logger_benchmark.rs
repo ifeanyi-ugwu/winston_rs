@@ -4,7 +4,7 @@ use winston::Logger;
 
 fn benchmark_logging(c: &mut Criterion) {
     let logger = Logger::builder()
-        .add_transport(winston::transports::Console::new(None))
+        .add_transport(winston::transports::stdout())
         .build();
 
     c.bench_function("log_message", |b| {

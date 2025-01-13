@@ -3,36 +3,38 @@ mod common;
 use common::DelayedTransport;
 use std::time::{Duration, Instant};
 use winston::{
-    configure,
+    close, configure,
     format::{self, LogInfo},
-    log_error, log_info, log_warn,
-    transports::Console,
+    log,
+    transports::stdout,
     Logger, LoggerOptions,
 };
 
 #[test]
 fn test_default_logger() {
-    log_info!("This use the default configuration");
-    log_info!("This is the second that uses the default configuration to check queue order");
+    log!(info, "This use the default configuration");
+    log!(
+        info,
+        "This is the second that uses the default configuration to check queue order"
+    );
 
     configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::combine(vec![format::timestamp(), format::json()])),
     ));
 
-    log_info!("This will use the new configuration");
-    Logger::shutdown();
+    log!(info, "This will use the new configuration");
+    close();
 }
 
-use winston::log;
 #[test]
 fn test_new_macros() {
     configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::combine(vec![format::timestamp(), format::json()])),
     ));
 
@@ -40,42 +42,42 @@ fn test_new_macros() {
     log!(info, "Hello, world!");
 
     // With key-value pairs
-    log!(warn,"User logged in", "user_id" => 123, "ip" => "192.168.1.1");
+    log!(warn, "User logged in", user_id = 123, ip = "192.168.1.1");
 
     // With explicit logger
     let custom_logger = Logger::builder()
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
         .level("debug")
         .build();
     log!(custom_logger, debug, "Custom logger message");
 
-    Logger::shutdown();
+    close();
 }
 
 #[test]
 fn test_default_logger_macros() {
-    log_info!("This is an info message");
-    log_warn!("This is a warning");
+    log!(info, "This is an info message");
+    log!(warn, "This is a warning");
 
     let error = "an error";
-    log_error!("This is an error: {}", error);
-    Logger::shutdown();
+    log!(error, format!("This is an error: {}", error));
+    close();
 }
 
 #[test]
 fn test_configure_on_custom_logger() {
-    let logger = Logger::new(None);
+    let logger = Logger::default();
 
-    logger.info("This is a message from the custom logger");
+    log!(logger, info, "This is a message from the custom logger");
 
     logger.configure(Some(
         LoggerOptions::new()
-            .add_transport(Console::new(None))
+            .add_transport(stdout())
             .format(format::simple())
             .level("debug"),
     ));
 
-    logger.info("This is a message from the custom logger");
+    log!(logger, info, "This is a message from the custom logger");
 }
 
 #[test]
@@ -86,7 +88,7 @@ fn test_logger_non_blocking() {
     let delayed_transport = DelayedTransport::new(PROCESS_DELAY);
 
     let logger = Logger::builder()
-        .add_transport(Console::new(None))
+        .add_transport(stdout())
         .add_transport(delayed_transport)
         .format(format::pretty_print().with_option("colorize", "true"))
         .build();

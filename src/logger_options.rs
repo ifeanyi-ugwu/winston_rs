@@ -1,4 +1,4 @@
-use super::logger_levels::LoggerLevels;
+use crate::logger_levels::LoggerLevels;
 use logform::{json, Format};
 use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;

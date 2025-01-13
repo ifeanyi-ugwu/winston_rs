@@ -1,11 +1,10 @@
 //use std::collections::HashMap;
 use logform::{Format, LogInfo};
-use std::any::Any;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Mutex;
-use winston_transport::{LogQuery, Queryable, Transport};
+use winston_transport::{LogQuery, Transport};
 
 pub struct FileTransportOptions {
     pub level: Option<String>,
@@ -65,7 +64,7 @@ impl FileTransport {
 impl FileTransport {
     fn parse_log_entry(&self, line: &str) -> Option<LogInfo> {
         let parsed: serde_json::Value = serde_json::from_str(line).ok()?;
-        // println!("Parsed log entry: {:?}", parsed); // Debug print
+        //println!("Parsed log entry: {:?}", parsed); // Debug print
 
         let level = parsed["level"].as_str()?;
         let message = parsed["message"].as_str()?;
@@ -102,9 +101,14 @@ impl Transport for FileTransport {
         if let Err(e) = writeln!(file, "{}", info.message) {
             eprintln!("Failed to write to log file: {}", e);
         }
-        if let Err(e) = file.flush() {
-            eprintln!("Failed to flush log file: {}", e);
-        }
+    }
+
+    fn flush(&self) -> Result<(), String> {
+        let mut file = self.file.lock().unwrap();
+        //println!("Flushing file transport");
+
+        file.flush()
+            .map_err(|e| format!("Failed to flush file: {}", e))
     }
 
     fn get_level(&self) -> Option<&String> {
@@ -115,41 +119,28 @@ impl Transport for FileTransport {
         self.options.format.as_ref()
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_queryable(&self) -> Option<&dyn Queryable> {
-        Some(self)
-    }
-}
-
-impl Queryable for FileTransport {
     fn query(&self, query: &LogQuery) -> Result<Vec<LogInfo>, String> {
         let file = File::open(self.options.filename.as_ref().unwrap())
             .map_err(|e| format!("Failed to open log file: {}", e))?;
         let reader = BufReader::new(file);
 
         let mut results = Vec::new();
-        let mut line_count = 0;
 
         // Determine the start and limit values
         let start = query.start.unwrap_or(0);
         let limit = query.limit.unwrap_or(usize::MAX);
 
-        for line in reader.lines() {
-            let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
+        for (index, line) in reader.lines().enumerate() {
+            let line = line.map_err(|e| format!("Failed to read line {}: {}", index, e))?;
             if let Some(entry) = self.parse_log_entry(&line) {
-                //println!("parsed entry {:?}", entry);
                 if query.matches(&entry) {
                     // Skip lines until the start position
-                    if line_count >= start {
+                    if index >= start {
                         results.push(entry);
                     }
-                    line_count += 1;
 
                     // Stop reading if the limit is reached
-                    if results.len() >= limit {
+                    if results.len() >= limit && limit != 0 {
                         break;
                     }
                 }
@@ -158,8 +149,55 @@ impl Queryable for FileTransport {
 
         // Apply sorting to the results
         query.sort(&mut results);
+
+        // Project fields if specified
+        let results = if !query.fields.is_empty() {
+            results
+                .into_iter()
+                .map(|entry| {
+                    // Normalize fields to lowercase for case-insensitive matching
+                    let normalized_fields: Vec<String> =
+                        query.fields.iter().map(|f| f.to_lowercase()).collect();
+
+                    LogInfo {
+                        // Only include level if 'level' is in fields
+                        level: if normalized_fields.contains(&"level".to_string()) {
+                            entry.level
+                        } else {
+                            String::new()
+                        },
+                        // Only include message if 'message' is in fields
+                        message: if normalized_fields.contains(&"message".to_string()) {
+                            entry.message
+                        } else {
+                            String::new()
+                        },
+                        // Filter meta fields based on specified fields
+                        meta: entry
+                            .meta
+                            .into_iter()
+                            .filter(|(k, _)| normalized_fields.contains(&k.to_lowercase()))
+                            .collect(),
+                    }
+                })
+                .collect()
+        } else {
+            results
+        };
+
         //println!("results: {:?}", results);
         Ok(results)
+    }
+}
+
+impl Drop for FileTransport {
+    fn drop(&mut self) {
+        // Attempt to flush any remaining logs before dropping
+        if let Ok(mut file) = self.file.lock() {
+            if let Err(e) = file.flush() {
+                eprintln!("Error flushing log file during drop: {}", e);
+            }
+        }
     }
 }
 

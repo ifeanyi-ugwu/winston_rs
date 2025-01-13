@@ -1,6 +1,6 @@
 mod common;
 
-use winston::{format, transports, LogQuery, Logger};
+use winston::{format, log, transports, LogQuery, Logger};
 
 #[test]
 fn test_logging_and_querying() {
@@ -16,22 +16,21 @@ fn test_logging_and_querying() {
         .build();
 
     // Log some messages
-    logger.info("Test message 1");
-    logger.error("Test error message");
-    logger.warn("Test warning");
+    log!(logger, info, "Test message 1");
+    log!(logger, error, "Test error message");
+    log!(logger, warn, "Test warning");
 
-    // Sleep for a short duration to ensure logs are flushed to the file and the query will retrieve them
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    let _ = logger.flush();
 
     // Define query to retrieve logs
     let query = LogQuery::new()
-        //.order(Order::Descending)
-        // .from(Utc.with_ymd_and_hms(2024, 9, 28, 0, 0, 0).unwrap())
-        // .until(Utc.with_ymd_and_hms(2024, 8, 29, 23, 59, 59).unwrap())
+        //.order("desc")
+        //.from("2 hours ago")
+        //.until("now")
         .levels(vec!["error"]);
-    // .limit(10)
-    // .search_term("t")
-    // .fields(vec!["message"]);
+    //.limit(10)
+    //.search_term("t")
+    //.fields(vec!["message", "level"]);
 
     // Execute the query
     let results = logger.query(&query);
@@ -39,6 +38,7 @@ fn test_logging_and_querying() {
 
     let logs = results.unwrap();
 
+    assert!(!logs.is_empty(), "No logs were found. Logs: {:?}", logs);
     for (index, log) in logs.iter().enumerate() {
         println!("{:?}", log);
         assert_eq!(
@@ -54,5 +54,5 @@ fn test_logging_and_querying() {
     }
 
     // Cleanup: remove the temporary file
-    std::fs::remove_file(temp_path).expect("Failed to remove temporary file");
+    common::delete_file_if_exists(&temp_path)
 }

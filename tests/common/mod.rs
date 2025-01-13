@@ -30,10 +30,6 @@ impl Transport for DelayedTransport {
     fn get_format(&self) -> Option<&Format> {
         None
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 pub fn generate_random_filename() -> String {

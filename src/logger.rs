@@ -1,26 +1,23 @@
-mod log_macros;
-mod logger_builder;
-mod logger_levels;
-mod logger_options;
-pub mod transports;
-
+use crate::{
+    logger_builder::LoggerBuilder,
+    logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
+};
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use lazy_static::lazy_static;
 use logform::{json, Format, LogInfo};
-use logger_builder::LoggerBuilder;
-pub use logger_options::BackpressureStrategy;
-pub use logger_options::LoggerOptions;
 use parking_lot::RwLock;
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::thread;
-use winston_transport::LogQuery;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Condvar, Mutex},
+    thread,
+};
+use winston_transport::{LogQuery, Transport};
 
 #[derive(Debug)]
 pub enum LogMessage {
     Entry(LogInfo),
     Configure(LoggerOptions),
     Shutdown,
+    Flush,
 }
 
 struct SharedState {
@@ -33,13 +30,15 @@ pub struct Logger {
     sender: Sender<LogMessage>,
     receiver: Arc<Receiver<LogMessage>>,
     shared_state: Arc<RwLock<SharedState>>,
+    flush_complete: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl Logger {
-    pub fn new(options: Option<LoggerOptions>) -> Self {
+    pub(crate) fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
         let capacity = options.channel_capacity.unwrap_or(1024);
         let (sender, receiver) = bounded(capacity);
+        let flush_complete = Arc::new((Mutex::new(false), Condvar::new()));
 
         let shared_receiver = Arc::new(receiver);
         let shared_state = Arc::new(RwLock::new(SharedState {
@@ -49,11 +48,12 @@ impl Logger {
 
         let worker_receiver = Arc::clone(&shared_receiver);
         let worker_shared_state = Arc::clone(&shared_state);
+        let worker_flush_complete = Arc::clone(&flush_complete);
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
             //println!("Worker thread starting..."); // Debug print
-            Self::worker_loop(worker_receiver, worker_shared_state);
+            Self::worker_loop(worker_receiver, worker_shared_state, worker_flush_complete);
             //println!("Worker thread finished."); // Debug print
         });
 
@@ -62,10 +62,15 @@ impl Logger {
             sender,
             shared_state,
             receiver: shared_receiver,
+            flush_complete,
         }
     }
 
-    fn worker_loop(receiver: Arc<Receiver<LogMessage>>, shared_state: Arc<RwLock<SharedState>>) {
+    fn worker_loop(
+        receiver: Arc<Receiver<LogMessage>>,
+        shared_state: Arc<RwLock<SharedState>>,
+        flush_complete: Arc<(Mutex<bool>, Condvar)>,
+    ) {
         for message in receiver.iter() {
             match message {
                 LogMessage::Entry(entry) => {
@@ -110,6 +115,22 @@ impl Logger {
                     let mut state = shared_state.write();
                     Self::process_buffered_entries(&mut state);
                     break;
+                }
+                LogMessage::Flush => {
+                    let mut state = shared_state.write();
+                    Self::process_buffered_entries(&mut state);
+
+                    if let Some(transports) = state.options.get_transports() {
+                        for transport in transports {
+                            let _ = transport.flush();
+                        }
+                    }
+
+                    // Signal completion
+                    let (lock, cvar) = &*flush_complete;
+                    let mut completed = lock.lock().unwrap();
+                    *completed = true;
+                    cvar.notify_one();
                 }
             }
         }
@@ -201,11 +222,9 @@ impl Logger {
         // Then, query each transport
         if let Some(transports) = state.options.get_transports() {
             for transport in transports {
-                if let Some(queryable_transport) = transport.as_queryable() {
-                    match queryable_transport.query(options) {
-                        Ok(mut logs) => results.append(&mut logs),
-                        Err(e) => return Err(format!("Query failed: {}", e)),
-                    }
+                match transport.query(options) {
+                    Ok(mut logs) => results.append(&mut logs),
+                    Err(e) => return Err(format!("Query failed: {}", e)),
                 }
             }
         }
@@ -277,6 +296,10 @@ impl Logger {
     }
 
     pub fn close(&mut self) {
+        if let Err(e) = self.flush() {
+            eprintln!("Error flushing logs: {}", e);
+        }
+
         let _ = self.sender.send(LogMessage::Shutdown); // Send shutdown signal
         if let Some(thread) = self.worker_thread.take() {
             //thread.join().unwrap();
@@ -286,30 +309,19 @@ impl Logger {
         }
     }
 
-    /// Gracefully shuts down the logger by:
-    ///
-    /// 1. **Sending a Shutdown Signal:**
-    ///    Sends a `Shutdown` message to the internal worker thread to indicate that no more log entries should be processed. This ensures that the worker thread stops accepting new log messages.
-    ///
-    /// 2. **Processing Remaining Entries:**
-    ///    The worker thread processes any remaining log entries in the buffer before terminating. This step is crucial to avoid losing log messages that were enqueued before the shutdown signal was sent.
-    ///
-    /// 3. **Joining the Worker Thread:**
-    ///    Waits for the worker thread to complete its processing and exit. This ensures that all buffered log entries are handled and that the thread is cleanly terminated.
-    ///
-    /// **Rationale:**
-    /// - **Message Integrity:** Guarantees that all log messages in the buffer are processed, preventing data loss.
-    /// - **Resource Management:** Helps in releasing resources like memory and thread handles, preventing leaks and ensuring clean termination of the logger.
-    /// - **Thread Safety:** Ensures that the worker thread completes its task before the logger is fully dropped, avoiding potential issues with incomplete processing.
-    ///
-    /// **Note:**
-    /// - In the context of global loggers initialized with `lazy_static!`, the `Drop` implementation might not be guaranteed to run if the global logger is not explicitly closed before the application exits. This can lead to unprocessed log entries if the application terminates abruptly. Hence, the `shutdown` method is crucial for ensuring that all log messages are properly handled.
-    pub fn shutdown() {
-        // Call close method which will send shutdown signal and join the worker thread
-        // let mut logger = DEFAULT_LOGGER.lock().unwrap();
-        //logger.close();
-        let mut logger = DEFAULT_LOGGER.write();
-        logger.close();
+    pub fn flush(&self) -> Result<(), String> {
+        let (lock, cvar) = &*self.flush_complete;
+        let mut completed = lock.lock().unwrap();
+
+        self.sender
+            .send(LogMessage::Flush)
+            .map_err(|e| e.to_string())?;
+
+        while !*completed {
+            completed = cvar.wait(completed).unwrap();
+        }
+
+        Ok(())
     }
 
     pub fn builder() -> LoggerBuilder {
@@ -358,9 +370,36 @@ impl Logger {
         Self::process_buffered_entries(&mut state);
     }
 
-    pub fn default(
-    ) -> parking_lot::lock_api::RwLockReadGuard<'static, parking_lot::RawRwLock, Logger> {
-        DEFAULT_LOGGER.read()
+    /// Adds a transport wrapped in an Arc directly to the logger
+    pub fn add_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+        let mut state = self.shared_state.write();
+        if let Some(transports) = &mut state.options.transports {
+            transports.push(DebugTransport(transport));
+            true
+        } else {
+            state.options.transports = Some(vec![DebugTransport(transport)]);
+            true
+        }
+    }
+
+    /// Removes a transport wrapped in an Arc from the logger
+    pub fn remove_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+        let mut state = self.shared_state.write();
+
+        if let Some(transports) = &mut state.options.transports {
+            // Find the index of the transport to remove based on pointer equality
+            if let Some(index) = transports
+                .iter()
+                .position(|t| Arc::ptr_eq(&transport, &t.0))
+            {
+                transports.remove(index);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 }
 
@@ -372,51 +411,8 @@ impl Drop for Logger {
     }
 }
 
-macro_rules! create_log_methods {
-    ($($level:ident),*) => {
-        impl Logger {
-            $(
-                pub fn $level(&self, message: &str) {
-                    let log_entry = LogInfo::new(stringify!($level), message);
-                    self.log(log_entry);
-                }
-            )*
-        }
-    };
-}
-
-create_log_methods!(info, warn, error, debug, trace);
-
-// Global logger implementation
-lazy_static! {
-    static ref DEFAULT_LOGGER: RwLock<Logger> = RwLock::new(Logger::new(None));
-}
-
-// Global logging functions
-pub fn log(entry: LogInfo) {
-    //DEFAULT_LOGGER.lock().unwrap().log(entry);
-    //let logger = DEFAULT_LOGGER.read();
-    let logger = Logger::default();
-    logger.log(entry);
-}
-
-pub fn configure(options: Option<LoggerOptions>) {
-    //DEFAULT_LOGGER.lock().unwrap().configure(options);
-    //let logger = DEFAULT_LOGGER.write();
-    let logger = Logger::default();
-    logger.configure(options);
-}
-
-#[macro_export]
-macro_rules! log {
-      ($level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
-        let entry = LogInfo::new(stringify!($level), $message)
-            $(.add_meta($key, $value))*;
-        $crate::log(entry);
-    }};
-     ($logger:expr, $level:ident, $message:expr $(, $key:expr => $value:expr)* $(,)?) => {{
-        let entry = LogInfo::new(stringify!($level), $message)
-            $(.add_meta($key, $value))*;
-        $logger.log(entry);
-    }};
+impl Default for Logger {
+    fn default() -> Self {
+        Logger::new(None)
+    }
 }

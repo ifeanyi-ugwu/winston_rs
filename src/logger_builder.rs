@@ -1,4 +1,7 @@
-use super::{BackpressureStrategy, Logger, LoggerOptions};
+use crate::{
+    logger_options::{BackpressureStrategy, LoggerOptions},
+    Logger,
+};
 use logform::Format;
 use std::collections::HashMap;
 use winston_transport::Transport;
