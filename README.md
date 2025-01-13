@@ -403,8 +403,6 @@ let results = logger.query(query);
 | `fields`      | List of fields to filter by.                                                                                           | `[]` (no specific fields required)    |
 | `search_term` | Text to search for in log messages.                                                                                    | `None` (no search term applied)       |
 
----
-
 #### Logging Timestamps
 
 **Timestamps are essential for effective log querying.** Log entries must include a `timestamp` field in their metadata (`LogInfo.meta`) for Winston’s querying capabilities to function as expected. The `timestamp` field should be a string compatible with [`dateparser`](https://docs.rs/dateparser/).
