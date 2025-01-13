@@ -88,39 +88,50 @@ fn main() {
 
 #### The `log!` Macro
 
-The `log!` macro simplifies logging by combining log level, message, and optional metadata into a single call:
+The simplest way to log messages is using the `log!` macro:
 
 ```rust
-log!(level, "Message", key1 = value1, key2 = value2);
+// Using the global logger
+log!(info, "System started");
+log!(warn, "Disk space low", usage = 92);
+
+// Using a specific logger
+log!(logger, error, "Connection failed", retries = 3, timeout = 120);
 ```
+
+It takes the following parameters:
 
 - **`level`**: Log level (`info`, `warn`, `error`, etc.).
 - **`Message`**: A string message.
 - **Optional key-value pairs**: Metadata to add context.
 
-Examples:
+#### Level-specific Methods and Macros
+
+Winston provides macros to create level-specific logging methods and macros:
 
 ```rust
-log!(info, "App initialized"); // Simple log
-log!(warn, "API timeout", endpoint = "/v1/data", retries = 3); // With metadata
-```
+use std::collections::HashMap;
+use winston::{meta, Logger};
 
-You can also log directly to a specific logger:
+// Define custom logging methods and macros
+winston::create_log_methods!(foo, bar, baz, foobar);
+winston::create_level_macros!(foo, bar, baz, foobar);
 
-```rust
-log!(my_logger, debug, "Custom logger used", module = "auth");
-```
+let logger = Logger::builder()
+    .add_transport(stdout())
+    .levels(HashMap::from([
+        ("foo", 0),  // Most severe
+        ("bar", 1),
+        ("baz", 2)
+        ("foobar", 3)   // Least severe
+    ]))
+    .level("bar")    // Log bar and more severe levels
+    .build();
 
-#### How It Works
-
-The `log!` macro internally creates a `LogInfo` object and passes it to the global logger or a specified logger. It's equivalent to manually constructing and logging a `LogInfo`:
-
-```rust
-let entry = LogInfo::new("info", "App initialized")
-    .with_meta("key1", "value1")
-    .with_meta("key2", "value2");
-
-logger.log(entry); // or just `log(entry)` for the global logger.
+// Usage
+logger.foo("Foo-level message", None);
+logger.foobar("Foobar-level message with metadata", Some(meta!(key = "value", timestamp = 1234567890)));
+foobar!(logger, "Foobar-level macro logging");
 ```
 
 ## Key Concepts
