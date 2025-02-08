@@ -1,4 +1,5 @@
 //use std::collections::HashMap;
+use super::proxy::Proxy;
 use logform::{Format, LogInfo};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -198,6 +199,62 @@ impl Drop for FileTransport {
                 eprintln!("Error flushing log file during drop: {}", e);
             }
         }
+    }
+}
+
+impl Proxy for FileTransport {
+    fn proxy(&self, target: &dyn Proxy) -> Result<usize, String> {
+        let path = self
+            .options
+            .filename
+            .as_ref()
+            .ok_or("No file path provided")?;
+
+        // Open the file and read line by line
+        let file = File::open(path).map_err(|e| format!("Failed to open log file: {}", e))?;
+        let reader = BufReader::new(file);
+
+        let mut log_entries = Vec::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| format!("Failed to read log line: {}", e))?;
+            if let Some(log) = self.parse_log_entry(&line) {
+                log_entries.push(log);
+            }
+        }
+
+        let log_count = log_entries.len();
+        if log_count == 0 {
+            return Ok(0);
+        }
+
+        // Send logs to the target transport
+        target.ingest(log_entries)?;
+
+        // Clear source file after transfer
+        std::fs::write(path, "").map_err(|e| format!("Failed to clear log file: {}", e))?;
+
+        Ok(log_count)
+    }
+
+    fn ingest(&self, logs: Vec<LogInfo>) -> Result<(), String> {
+        let path = self
+            .options
+            .filename
+            .as_ref()
+            .ok_or("No file path provided")?;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+
+        for log in logs {
+            writeln!(file, "{}", log.message).map_err(|e| format!("Failed to write log: {}", e))?;
+        }
+
+        Ok(())
     }
 }
 
