@@ -251,7 +251,15 @@ impl Proxy for FileTransport {
             .map_err(|e| format!("Failed to open file: {}", e))?;
 
         for log in logs {
-            writeln!(file, "{}", log.message).map_err(|e| format!("Failed to write log: {}", e))?;
+            let formatted_log = match &self.options.format {
+                Some(format) => format
+                    .transform(log.clone(), None)
+                    .ok_or_else(|| "Transform failed".to_string())?,
+                None => log,
+            };
+
+            writeln!(file, "{}", formatted_log.message)
+                .map_err(|e| format!("Failed to write log: {}", e))?;
         }
 
         Ok(())
