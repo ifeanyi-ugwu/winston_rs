@@ -1,8 +1,9 @@
 //use std::collections::HashMap;
+use super::proxy::Proxy;
 use logform::{Format, LogInfo};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
 use std::sync::Mutex;
 use winston_transport::{LogQuery, Transport};
 
@@ -198,6 +199,89 @@ impl Drop for FileTransport {
                 eprintln!("Error flushing log file during drop: {}", e);
             }
         }
+    }
+}
+
+impl Proxy for FileTransport {
+    fn proxy(&self, target: &dyn Proxy) -> Result<usize, String> {
+        let path = self
+            .options
+            .filename
+            .as_ref()
+            .ok_or("No file path provided")?;
+
+        // First get a lock and flush any pending writes
+        let mut file_guard = self
+            .file
+            .lock()
+            .map_err(|_| "Failed to acquire file lock".to_string())?;
+
+        file_guard
+            .flush()
+            .map_err(|e| format!("Failed to flush pending writes: {}", e))?;
+
+        // Create a separate reader while holding the lock
+        let file =
+            File::open(path).map_err(|e| format!("Failed to open file for reading: {}", e))?;
+        let reader = BufReader::new(file);
+
+        let mut log_entries = Vec::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| format!("Failed to read log line: {}", e))?;
+            if let Some(log) = self.parse_log_entry(&line) {
+                log_entries.push(log);
+            }
+        }
+
+        let log_count = log_entries.len();
+        if log_count == 0 {
+            return Ok(0);
+        }
+
+        // Send logs to target
+        target.ingest(log_entries)?;
+
+        // Truncate the file using the writer
+        file_guard
+            .get_mut()
+            .set_len(0)
+            .map_err(|e| format!("Failed to clear file: {}", e))?;
+
+        // Seek back to start
+        file_guard
+            .rewind()
+            .map_err(|e| format!("Failed to rewind after clear: {}", e))?;
+
+        Ok(log_count)
+    }
+
+    fn ingest(&self, logs: Vec<LogInfo>) -> Result<(), String> {
+        let path = self
+            .options
+            .filename
+            .as_ref()
+            .ok_or("No file path provided")?;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+
+        for log in logs {
+            let formatted_log = match &self.options.format {
+                Some(format) => format
+                    .transform(log.clone(), None)
+                    .ok_or_else(|| "Transform failed".to_string())?,
+                None => log,
+            };
+
+            writeln!(file, "{}", formatted_log.message)
+                .map_err(|e| format!("Failed to write log: {}", e))?;
+        }
+
+        Ok(())
     }
 }
 
