@@ -233,10 +233,15 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogInfo) {
-        match self.sender.try_send(LogMessage::Entry(entry.clone())) {
+        match self.sender.try_send(LogMessage::Entry(entry)) {
             Ok(_) => {}
-            Err(TrySendError::Full(_)) => {
+            Err(TrySendError::Full(LogMessage::Entry(entry))) => {
                 self.handle_full_channel(entry);
+            }
+            Err(TrySendError::Full(
+                msg @ (LogMessage::Configure(_) | LogMessage::Shutdown | LogMessage::Flush),
+            )) => {
+                eprintln!("[winston] Channel is full for message: {:?}", msg);
             }
             Err(TrySendError::Disconnected(_)) => {
                 eprintln!("[winston] Channel is disconnected. Unable to log message.");
