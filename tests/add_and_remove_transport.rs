@@ -26,14 +26,14 @@ fn read_file_with_retry(filename: &str, max_retries: u32, delay_ms: u64) -> Stri
 #[test]
 fn test_add_and_remove_transport() {
     // Create two file transports
-    let file_transport1: Arc<dyn Transport + Send + Sync> = Arc::new(
+    let file_transport1: Arc<dyn Transport> = Arc::new(
         transports::File::builder()
             .filename("test_log1.log")
             .level("info")
             .build(),
     );
 
-    let file_transport2: Arc<dyn Transport + Send + Sync> = Arc::new(
+    let file_transport2: Arc<dyn Transport> = Arc::new(
         transports::File::builder()
             .filename("test_log2.log")
             .level("info")
