@@ -371,7 +371,7 @@ impl Logger {
     }
 
     /// Adds a transport wrapped in an Arc directly to the logger
-    pub fn add_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+    pub fn add_transport(&self, transport: Arc<dyn Transport>) -> bool {
         let mut state = self.shared_state.write();
         if let Some(transports) = &mut state.options.transports {
             transports.push(DebugTransport(transport));
@@ -383,7 +383,7 @@ impl Logger {
     }
 
     /// Removes a transport wrapped in an Arc from the logger
-    pub fn remove_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+    pub fn remove_transport(&self, transport: Arc<dyn Transport>) -> bool {
         let mut state = self.shared_state.write();
 
         if let Some(transports) = &mut state.options.transports {
