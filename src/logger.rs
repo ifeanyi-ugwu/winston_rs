@@ -17,6 +17,7 @@ pub enum LogMessage {
     Entry(LogInfo),
     Configure(LoggerOptions),
     Shutdown,
+    Flush,
 }
 
 struct SharedState {
@@ -29,6 +30,7 @@ pub struct Logger {
     sender: Sender<LogMessage>,
     receiver: Arc<Receiver<LogMessage>>,
     shared_state: Arc<RwLock<SharedState>>,
+    flush_complete: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl Logger {
@@ -36,6 +38,7 @@ impl Logger {
         let options = options.unwrap_or_default();
         let capacity = options.channel_capacity.unwrap_or(1024);
         let (sender, receiver) = bounded(capacity);
+        let flush_complete = Arc::new((Mutex::new(false), Condvar::new()));
 
         let shared_receiver = Arc::new(receiver);
         let shared_state = Arc::new(RwLock::new(SharedState {
@@ -45,11 +48,12 @@ impl Logger {
 
         let worker_receiver = Arc::clone(&shared_receiver);
         let worker_shared_state = Arc::clone(&shared_state);
+        let worker_flush_complete = Arc::clone(&flush_complete);
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
             //println!("Worker thread starting..."); // Debug print
-            Self::worker_loop(worker_receiver, worker_shared_state);
+            Self::worker_loop(worker_receiver, worker_shared_state, worker_flush_complete);
             //println!("Worker thread finished."); // Debug print
         });
 
@@ -58,10 +62,15 @@ impl Logger {
             sender,
             shared_state,
             receiver: shared_receiver,
+            flush_complete,
         }
     }
 
-    fn worker_loop(receiver: Arc<Receiver<LogMessage>>, shared_state: Arc<RwLock<SharedState>>) {
+    fn worker_loop(
+        receiver: Arc<Receiver<LogMessage>>,
+        shared_state: Arc<RwLock<SharedState>>,
+        flush_complete: Arc<(Mutex<bool>, Condvar)>,
+    ) {
         for message in receiver.iter() {
             match message {
                 LogMessage::Entry(entry) => {
@@ -106,6 +115,22 @@ impl Logger {
                     let mut state = shared_state.write();
                     Self::process_buffered_entries(&mut state);
                     break;
+                }
+                LogMessage::Flush => {
+                    let mut state = shared_state.write();
+                    Self::process_buffered_entries(&mut state);
+
+                    if let Some(transports) = state.options.get_transports() {
+                        for transport in transports {
+                            let _ = transport.flush();
+                        }
+                    }
+
+                    // Signal completion
+                    let (lock, cvar) = &*flush_complete;
+                    let mut completed = lock.lock().unwrap();
+                    *completed = true;
+                    cvar.notify_one();
                 }
             }
         }
@@ -287,14 +312,20 @@ impl Logger {
         }
     }
 
+    // though this method is synchronous and can be called directly, i observed that in doing that,
+    // messages might not finishing logging, i noticed this when testing in logmark,
+    // also this might be a better and predictable way to handle it since it ensures messages
+    // sitting in the pipeline is processed before each transport's flush method is called
     pub fn flush(&self) -> Result<(), String> {
-        let mut state = self.shared_state.write();
-        Self::process_buffered_entries(&mut state);
+        let (lock, cvar) = &*self.flush_complete;
+        let mut completed = lock.lock().unwrap();
 
-        if let Some(transports) = state.options.get_transports() {
-            for transport in transports {
-                let _ = transport.flush()?;
-            }
+        self.sender
+            .send(LogMessage::Flush)
+            .map_err(|e| e.to_string())?;
+
+        while !*completed {
+            completed = cvar.wait(completed).unwrap();
         }
 
         Ok(())
