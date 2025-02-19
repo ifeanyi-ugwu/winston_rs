@@ -43,12 +43,12 @@ impl LoggerBuilder {
     }
 
     pub fn channel_capacity(mut self, capacity: usize) -> Self {
-        self.options.channel_capacity = Some(capacity);
+        self.options = self.options.channel_capacity(capacity);
         self
     }
 
     pub fn backpressure_strategy(mut self, strategy: BackpressureStrategy) -> Self {
-        self.options.backpressure_strategy = Some(strategy);
+        self.options = self.options.backpressure_strategy(strategy);
         self
     }
 
