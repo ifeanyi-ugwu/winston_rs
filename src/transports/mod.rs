@@ -1,7 +1,8 @@
-pub mod file;
-pub mod proxy;
+mod file;
+mod proxy;
 
 pub use file::FileTransport as File;
+pub use proxy::{Proxy, ProxyTransport};
 use std::io;
 pub use winston_transport::WriterTransport;
 
