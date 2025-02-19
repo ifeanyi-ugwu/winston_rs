@@ -238,8 +238,17 @@ impl Logger {
             Err(TrySendError::Full(LogMessage::Entry(entry))) => {
                 self.handle_full_channel(entry);
             }
-            Err(TrySendError::Full(msg @ (LogMessage::Configure(_) | LogMessage::Shutdown))) => {
-                eprintln!("[winston] Channel is full for message: {:?}", msg);
+            Err(TrySendError::Full(LogMessage::Configure(config))) => {
+                eprintln!("[winston] Channel is full, forcing config update.");
+                let _ = self.sender.send(LogMessage::Configure(config));
+            }
+            Err(TrySendError::Full(LogMessage::Shutdown)) => {
+                eprintln!("[winston] Channel is full, forcing shutdown.");
+                let _ = self.sender.send(LogMessage::Shutdown);
+            }
+            Err(TrySendError::Full(LogMessage::Flush)) => {
+                eprintln!("[winston] Channel is full, forcing flush.");
+                let _ = self.sender.send(LogMessage::Flush);
             }
             Err(TrySendError::Disconnected(_)) => {
                 eprintln!("[winston] Channel is disconnected. Unable to log message.");
