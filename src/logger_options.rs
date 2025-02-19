@@ -70,6 +70,11 @@ impl LoggerOptions {
         self
     }
 
+    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
+        self.transports = Some(transports.into_iter().map(|t| DebugTransport(t)).collect());
+        self
+    }
+
     /// Sets custom logging levels for the logger.
     ///
     /// # Arguments

@@ -3,7 +3,7 @@ use crate::{
     Logger,
 };
 use logform::Format;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
 
 pub struct LoggerBuilder {
@@ -29,6 +29,11 @@ impl LoggerBuilder {
 
     pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
         self.options = self.options.add_transport(transport);
+        self
+    }
+
+    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
+        self.options = self.options.transports(transports);
         self
     }
 
