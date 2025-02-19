@@ -27,7 +27,7 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
         self.options = self.options.add_transport(transport);
         self
     }
