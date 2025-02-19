@@ -339,7 +339,9 @@ impl Logger {
         let mut state = self.shared_state.write();
 
         // Clear existing transports
-        state.options.transports = Some(Vec::new());
+        if let Some(t) = state.options.transports.as_mut() {
+            t.clear();
+        }
 
         // Create a new default options instance
         let default_options = LoggerOptions::default();
@@ -350,21 +352,21 @@ impl Logger {
             if let Some(format) = options.format {
                 state.options.format = Some(format);
             } else if state.options.format.is_none() {
-                state.options.format = default_options.format.clone();
+                state.options.format.clone_from(&default_options.format)
             }
 
             // Levels: use the new levels if provided, otherwise use the existing levels or default
             if let Some(levels) = options.levels {
                 state.options.levels = Some(levels);
             } else if state.options.levels.is_none() {
-                state.options.levels = default_options.levels.clone();
+                state.options.levels.clone_from(&default_options.levels)
             }
 
             // Level: use the new level if provided, otherwise use the existing level or default to "info"
             if let Some(level) = options.level {
                 state.options.level = Some(level);
             } else if state.options.level.is_none() {
-                state.options.level = default_options.level.clone();
+                state.options.level.clone_from(&default_options.level)
             }
 
             // Add all transports we have been provided
