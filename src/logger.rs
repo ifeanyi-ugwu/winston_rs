@@ -328,6 +328,7 @@ impl Logger {
     pub fn flush(&self) -> Result<(), String> {
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
+        *completed = false;
 
         self.sender
             .send(LogMessage::Flush)
