@@ -18,12 +18,11 @@ fn test_default_logger() {
         "This is the second that uses the default configuration to check queue order"
     );
 
-    configure(Some(
-        LoggerOptions::new()
-            .level("debug")
-            .add_transport(stdout())
-            .format(format::combine(vec![format::timestamp(), format::json()])),
-    ));
+    winston::rebuilder()
+        .level("debug")
+        .add_transport(stdout())
+        .format(format::combine(vec![format::timestamp(), format::json()]))
+        .rebuild();
 
     log!(info, "This will use the new configuration");
     close();
@@ -70,12 +69,12 @@ fn test_configure_on_custom_logger() {
 
     log!(logger, info, "This is a message from the custom logger");
 
-    logger.configure(Some(
-        LoggerOptions::new()
-            .add_transport(stdout())
-            .format(format::simple())
-            .level("debug"),
-    ));
+    logger
+        .rebuilder()
+        .add_transport(stdout())
+        .format(format::simple())
+        .level("debug")
+        .rebuild();
 
     log!(logger, info, "This is a message from the custom logger");
 }
