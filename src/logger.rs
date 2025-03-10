@@ -1,6 +1,7 @@
 use crate::{
     logger_builder::LoggerBuilder,
     logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
+    rebuilder::LoggerRebuilder,
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::{json, Format, LogInfo};
@@ -386,6 +387,10 @@ impl Logger {
 
         // Process buffered entries with new configuration
         Self::process_buffered_entries(&mut state);
+    }
+
+    pub fn rebuilder(&self) -> LoggerRebuilder {
+        LoggerRebuilder::new(self)
     }
 
     /// Adds a transport wrapped in an Arc directly to the logger
