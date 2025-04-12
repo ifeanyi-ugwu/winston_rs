@@ -3,7 +3,7 @@ use crate::{
     Logger,
 };
 use logform::Format;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
 
 pub struct LoggerBuilder {
@@ -27,8 +27,13 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
         self.options = self.options.add_transport(transport);
+        self
+    }
+
+    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
+        self.options = self.options.transports(transports);
         self
     }
 
@@ -38,12 +43,12 @@ impl LoggerBuilder {
     }
 
     pub fn channel_capacity(mut self, capacity: usize) -> Self {
-        self.options.channel_capacity = Some(capacity);
+        self.options = self.options.channel_capacity(capacity);
         self
     }
 
     pub fn backpressure_strategy(mut self, strategy: BackpressureStrategy) -> Self {
-        self.options.backpressure_strategy = Some(strategy);
+        self.options = self.options.backpressure_strategy(strategy);
         self
     }
 

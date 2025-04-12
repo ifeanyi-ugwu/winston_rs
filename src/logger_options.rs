@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;
 
 // Wrapper type for Transport to implement Debug
-pub struct DebugTransport(pub Arc<dyn Transport + Send + Sync>);
+pub struct DebugTransport(pub Arc<dyn Transport>);
 
 impl fmt::Debug for DebugTransport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -63,10 +63,15 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `transport` - A single transport to be added to the current list.
-    pub fn add_transport<T: Transport + Send + Sync + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
         self.transports
             .get_or_insert_with(Vec::new)
             .push(DebugTransport(Arc::new(transport)));
+        self
+    }
+
+    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
+        self.transports = Some(transports.into_iter().map(|t| DebugTransport(t)).collect());
         self
     }
 
@@ -101,7 +106,7 @@ impl LoggerOptions {
     }
 
     // Helper method to get the actual Transports
-    pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport + Send + Sync>>> {
+    pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport>>> {
         self.transports
             .as_ref()
             .map(|ts| ts.iter().map(|dt| Arc::clone(&dt.0)).collect())

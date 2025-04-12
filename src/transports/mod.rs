@@ -1,5 +1,4 @@
-pub mod file;
-pub mod proxy;
+mod file;
 
 pub use file::FileTransport as File;
 use std::io;

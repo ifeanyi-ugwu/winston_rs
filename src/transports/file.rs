@@ -1,10 +1,10 @@
 //use std::collections::HashMap;
-use super::proxy::Proxy;
 use logform::{Format, LogInfo};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
 use std::sync::Mutex;
+use winston_proxy_transport::Proxy;
 use winston_transport::{LogQuery, Transport};
 
 pub struct FileTransportOptions {

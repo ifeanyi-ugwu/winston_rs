@@ -233,10 +233,22 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogInfo) {
-        match self.sender.try_send(LogMessage::Entry(entry.clone())) {
+        match self.sender.try_send(LogMessage::Entry(entry)) {
             Ok(_) => {}
-            Err(TrySendError::Full(_)) => {
+            Err(TrySendError::Full(LogMessage::Entry(entry))) => {
                 self.handle_full_channel(entry);
+            }
+            Err(TrySendError::Full(LogMessage::Configure(config))) => {
+                eprintln!("[winston] Channel is full, forcing config update.");
+                let _ = self.sender.send(LogMessage::Configure(config));
+            }
+            Err(TrySendError::Full(LogMessage::Shutdown)) => {
+                eprintln!("[winston] Channel is full, forcing shutdown.");
+                let _ = self.sender.send(LogMessage::Shutdown);
+            }
+            Err(TrySendError::Full(LogMessage::Flush)) => {
+                eprintln!("[winston] Channel is full, forcing flush.");
+                let _ = self.sender.send(LogMessage::Flush);
             }
             Err(TrySendError::Disconnected(_)) => {
                 eprintln!("[winston] Channel is disconnected. Unable to log message.");
@@ -309,6 +321,9 @@ impl Logger {
         }
     }
 
+    // though the flush method on transports is synchronous and can be called directly when this is called,
+    // processing it in the background worker ensures that messages sitting in the pipeline is processed
+    // before each transport's flush method is called
     pub fn flush(&self) -> Result<(), String> {
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
@@ -333,7 +348,9 @@ impl Logger {
         let mut state = self.shared_state.write();
 
         // Clear existing transports
-        state.options.transports = Some(Vec::new());
+        if let Some(t) = state.options.transports.as_mut() {
+            t.clear();
+        }
 
         // Create a new default options instance
         let default_options = LoggerOptions::default();
@@ -344,21 +361,21 @@ impl Logger {
             if let Some(format) = options.format {
                 state.options.format = Some(format);
             } else if state.options.format.is_none() {
-                state.options.format = default_options.format.clone();
+                state.options.format.clone_from(&default_options.format)
             }
 
             // Levels: use the new levels if provided, otherwise use the existing levels or default
             if let Some(levels) = options.levels {
                 state.options.levels = Some(levels);
             } else if state.options.levels.is_none() {
-                state.options.levels = default_options.levels.clone();
+                state.options.levels.clone_from(&default_options.levels)
             }
 
             // Level: use the new level if provided, otherwise use the existing level or default to "info"
             if let Some(level) = options.level {
                 state.options.level = Some(level);
             } else if state.options.level.is_none() {
-                state.options.level = default_options.level.clone();
+                state.options.level.clone_from(&default_options.level)
             }
 
             // Add all transports we have been provided
@@ -372,7 +389,7 @@ impl Logger {
     }
 
     /// Adds a transport wrapped in an Arc directly to the logger
-    pub fn add_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+    pub fn add_transport(&self, transport: Arc<dyn Transport>) -> bool {
         let mut state = self.shared_state.write();
         if let Some(transports) = &mut state.options.transports {
             transports.push(DebugTransport(transport));
@@ -384,7 +401,7 @@ impl Logger {
     }
 
     /// Removes a transport wrapped in an Arc from the logger
-    pub fn remove_transport(&self, transport: Arc<dyn Transport + Send + Sync>) -> bool {
+    pub fn remove_transport(&self, transport: Arc<dyn Transport>) -> bool {
         let mut state = self.shared_state.write();
 
         if let Some(transports) = &mut state.options.transports {
