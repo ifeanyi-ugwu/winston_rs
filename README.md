@@ -418,7 +418,7 @@ let results = logger.query(query);
 | `start`       | Offset for query results, used for pagination.                                                                         | `0`                                   |
 | `order`       | Order of results, either `asc`, `ascending`, `descending` or `desc`.                                                   | `Descending`                          |
 | `levels`      | List of log levels to include in the query (e.g., `["error", "info"]`).                                                | `[]` (no filter, includes all levels) |
-| `fields`      | List of fields to filter by.                                                                                           | `[]` (no specific fields required)    |
+| `fields`      | List of fields to include in the returned logs (projection). If empty, all fields are returned.                        | `[]`                                  |
 | `search_term` | Text to search for in log messages.                                                                                    | `None` (no search term applied)       |
 
 #### Logging Timestamps
