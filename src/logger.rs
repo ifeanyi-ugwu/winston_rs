@@ -321,10 +321,9 @@ impl Logger {
         }
     }
 
-    // though this method is synchronous and can be called directly, i observed that in doing that,
-    // messages might not finishing logging, i noticed this when testing in logmark,
-    // also this might be a better and predictable way to handle it since it ensures messages
-    // sitting in the pipeline is processed before each transport's flush method is called
+    // though the flush method on transports is synchronous and can be called directly when this is called,
+    // processing it in the background worker ensures that messages sitting in the pipeline is processed
+    // before each transport's flush method is called
     pub fn flush(&self) -> Result<(), String> {
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
