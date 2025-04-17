@@ -3,7 +3,7 @@ use crate::{
     logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use logform::{json, Format, LogInfo};
+use logform::LogInfo;
 use parking_lot::RwLock;
 use std::{
     collections::VecDeque,
@@ -143,8 +143,6 @@ impl Logger {
     }
 
     fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
-        let format = options.format.clone().unwrap_or_else(|| json());
-
         if !Self::is_level_enabled(&entry.level, options) {
             return;
         }
@@ -156,10 +154,14 @@ impl Logger {
 
         if let Some(transports) = options.get_transports() {
             for transport in transports {
-                if let Some(formatted_message) =
-                    Self::format_message(entry, transport.get_format(), &format)
-                {
-                    transport.log(formatted_message);
+                let formatted_message = match (transport.get_format(), &options.format) {
+                    (Some(tf), Some(_lf)) => tf.transform(entry.clone(), None),
+                    (Some(tf), None) => tf.transform(entry.clone(), None),
+                    (None, Some(lf)) => lf.transform(entry.clone(), None),
+                    (None, None) => Some(entry.clone()),
+                };
+                if let Some(msg) = formatted_message {
+                    transport.log(msg);
                 }
             }
         }
@@ -196,16 +198,6 @@ impl Logger {
 
         // Fallback to global level check if no transports
         global_level_value >= entry_level_value
-    }
-
-    fn format_message(
-        entry: &LogInfo,
-        transport_format: Option<&Format>,
-        default_format: &Format,
-    ) -> Option<LogInfo> {
-        let format_to_use = transport_format.unwrap_or(default_format);
-        format_to_use.transform(entry.clone(), None)
-        //.map(|entry| entry.message)
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
