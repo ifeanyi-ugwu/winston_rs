@@ -76,6 +76,16 @@ macro_rules! create_level_macros {
     ($($level:ident),*) => {
         $(
             macro_rules! $level {
+                // using the @global is unclean, this would still allow them pass in string literals naturally whilst keeping the @global arm for flexibility of passing the message via an expression
+                ($message:literal, $meta:expr) => {{
+                    let mut entry = $crate::format::LogInfo::new(stringify!($level), $message);
+                    for (key, value) in $meta {
+                        entry = entry.with_meta(key, value);
+                    }
+                    //$crate::log(entry);
+                    $crate::global_logger().log(entry);
+                }};
+
                 // First arm: Log without metadata
                 ($logger:expr, $message:expr) => {
                     $crate::log!($logger, $level, $message);
