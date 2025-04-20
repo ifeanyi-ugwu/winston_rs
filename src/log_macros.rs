@@ -82,8 +82,7 @@ macro_rules! create_level_macros {
                     for (key, value) in $meta {
                         entry = entry.with_meta(key, value);
                     }
-                    //$crate::log(entry);
-                    $crate::global_logger().log(entry);
+                    $crate::log(entry);
                 }};
 
                 // First arm: Log without metadata
