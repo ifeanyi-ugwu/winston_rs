@@ -26,7 +26,7 @@ struct SharedState {
 }
 
 pub struct Logger {
-    worker_thread: Option<thread::JoinHandle<()>>,
+    worker_thread: Mutex<Option<thread::JoinHandle<()>>>,
     sender: Sender<LogMessage>,
     receiver: Arc<Receiver<LogMessage>>,
     shared_state: Arc<RwLock<SharedState>>,
@@ -58,7 +58,7 @@ impl Logger {
         });
 
         Logger {
-            worker_thread: Some(worker_thread),
+            worker_thread: Mutex::new(Some(worker_thread)),
             sender,
             shared_state,
             receiver: shared_receiver,
@@ -299,17 +299,21 @@ impl Logger {
         }
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         if let Err(e) = self.flush() {
             eprintln!("Error flushing logs: {}", e);
         }
 
-        let _ = self.sender.send(LogMessage::Shutdown); // Send shutdown signal
-        if let Some(thread) = self.worker_thread.take() {
-            //thread.join().unwrap();
-            if let Err(e) = thread.join() {
-                eprintln!("Error joining worker thread: {:?}", e);
+        let _ = self.sender.send(LogMessage::Shutdown);
+
+        if let Ok(mut thread_handle) = self.worker_thread.lock() {
+            if let Some(handle) = thread_handle.take() {
+                if let Err(e) = handle.join() {
+                    eprintln!("Error joining worker thread: {:?}", e);
+                }
             }
+        } else {
+            eprintln!("Error acquiring lock on worker thread handle during close.");
         }
     }
 
