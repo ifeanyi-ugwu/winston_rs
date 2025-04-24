@@ -21,8 +21,7 @@ pub fn close() {
 }
 
 pub fn flush() -> Result<(), String> {
-    GLOBAL_LOGGER.flush()?;
-    Ok(())
+    GLOBAL_LOGGER.flush()
 }
 
 pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<LogInfo>, String> {
