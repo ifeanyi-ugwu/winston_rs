@@ -1,7 +1,9 @@
 use logform::LogInfo;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
-use winston::{create_level_macros, create_log_methods, log, meta, LogQuery, Logger};
+use winston::{
+    create_level_macros, create_log_methods, log, meta, LogQuery, Logger, LoggerOptions,
+};
 use winston_transport::Transport;
 
 #[derive(Clone)]
@@ -43,11 +45,14 @@ fn setup_logger() -> (Logger, Arc<Mutex<Vec<LogInfo>>>) {
 
 #[test]
 fn test_log_macro_no_logger() {
-    winston::init(
+    /*winston::init(
         Logger::builder()
             .add_transport(MockTransport::new())
             .build(),
-    );
+    );*/
+    winston::configure(Some(
+        LoggerOptions::new().add_transport(MockTransport::new()),
+    ));
     log!(info, "Simple message");
     let _ = winston::flush();
     let query = LogQuery::new();
@@ -61,11 +66,14 @@ fn test_log_macro_no_logger() {
 
 #[test]
 fn test_log_macro_no_logger_with_metadata() {
-    winston::init(
+    /*winston::init(
         Logger::builder()
             .add_transport(MockTransport::new())
             .build(),
-    );
+    );*/
+    winston::configure(Some(
+        LoggerOptions::new().add_transport(MockTransport::new()),
+    ));
     log!(warn, "Message with metadata", key1 = "value1", key2 = 123);
     let _ = winston::flush();
     let query = LogQuery::new();
@@ -137,11 +145,14 @@ fn test_log_macro_with_logger_and_meta_macro() {
 
 #[test]
 fn test_log_macro_no_logger_with_meta_macro() {
-    winston::init(
+    /*winston::init(
         Logger::builder()
             .add_transport(MockTransport::new())
             .build(),
-    );
+    );*/
+    winston::configure(Some(
+        LoggerOptions::new().add_transport(MockTransport::new()),
+    ));
     log!(
         info,
         "Using meta! without logger",
@@ -237,12 +248,17 @@ fn test_create_level_macros_with_logger() {
 
 #[test]
 fn test_create_level_macros_no_logger() {
-    winston::init(
+    /*winston::init(
         Logger::builder()
             .level("debug")
             .add_transport(MockTransport::new())
             .build(),
-    );
+    );*/
+    winston::configure(Some(
+        LoggerOptions::new()
+            .level("debug")
+            .add_transport(MockTransport::new()),
+    ));
     create_level_macros!(debug, error);
     error!("An error has happened");
     debug!(
