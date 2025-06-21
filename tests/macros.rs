@@ -191,10 +191,7 @@ fn test_create_log_methods_trait_and_impl() {
     let (logger, _) = setup_logger();
     create_log_methods!(info, warn, error);
     logger.info("Informational message", None);
-    logger.warn(
-        "Warning!",
-        Some(vec![("type", Value::String("security".into()))]),
-    );
+    logger.warn("Warning!", Some(vec![("type", "security".into())]));
     logger.error("Something went wrong", None);
 
     logger.flush().unwrap();
@@ -223,11 +220,7 @@ fn test_create_level_macros_with_logger() {
     let (logger, _) = setup_logger();
     create_level_macros!(info, warn);
     info!(logger, "This is an info level message");
-    warn!(
-        logger,
-        "A warning occurred",
-        vec![("code", Value::Number(404.into()))]
-    );
+    warn!(logger, "A warning occurred", vec![("code", 404)]);
 
     logger.flush().unwrap();
     let query = LogQuery::new();
@@ -261,10 +254,7 @@ fn test_create_level_macros_no_logger() {
     ));
     create_level_macros!(debug, error);
     error!("An error has happened");
-    debug!(
-        "Debugging information",
-        vec![("module", Value::String("parser".into()))]
-    );
+    debug!("Debugging information", vec![("module", "parser")]);
 
     let _ = winston::flush();
     let query = LogQuery::new();
