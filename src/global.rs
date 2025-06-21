@@ -1,25 +1,37 @@
 use crate::{Logger, LoggerOptions};
 use lazy_static::lazy_static;
 use logform::LogInfo;
-use parking_lot::RwLock;
+use std::sync::Arc;
+use winston_transport::Transport;
 
 lazy_static! {
-    static ref DEFAULT_LOGGER: RwLock<Logger> = RwLock::new(Logger::new(None));
+    static ref GLOBAL_LOGGER: Logger = Logger::new(None);
 }
 
 pub fn log(entry: LogInfo) {
-    DEFAULT_LOGGER.read().log(entry);
+    GLOBAL_LOGGER.log(entry);
 }
 
 pub fn configure(options: Option<LoggerOptions>) {
-    DEFAULT_LOGGER.read().configure(options);
+    GLOBAL_LOGGER.configure(options);
 }
 
 pub fn close() {
-    DEFAULT_LOGGER.write().close();
+    GLOBAL_LOGGER.close();
 }
 
 pub fn flush() -> Result<(), String> {
-    DEFAULT_LOGGER.read().flush()?;
-    Ok(())
+    GLOBAL_LOGGER.flush()
+}
+
+pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<LogInfo>, String> {
+    GLOBAL_LOGGER.query(options)
+}
+
+pub fn add_transport(transport: Arc<dyn Transport>) -> bool {
+    GLOBAL_LOGGER.add_transport(transport)
+}
+
+pub fn remove_transport(transport: Arc<dyn Transport>) -> bool {
+    GLOBAL_LOGGER.remove_transport(transport)
 }
