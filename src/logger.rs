@@ -34,7 +34,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub(crate) fn new(options: Option<LoggerOptions>) -> Self {
+    pub fn new(options: Option<LoggerOptions>) -> Self {
         let options = options.unwrap_or_default();
         let capacity = options.channel_capacity.unwrap_or(1024);
         let (sender, receiver) = bounded(capacity);
