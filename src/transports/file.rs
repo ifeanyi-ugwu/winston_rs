@@ -104,6 +104,15 @@ impl Transport for FileTransport {
         }
     }
 
+    fn log_batch(&self, logs: Vec<LogInfo>) {
+        let mut file = self.file.lock().unwrap();
+        for info in logs {
+            if let Err(e) = writeln!(file, "{}", info.message) {
+                eprintln!("Failed to write to log file in batch: {}", e);
+            }
+        }
+    }
+
     fn flush(&self) -> Result<(), String> {
         let mut file = self.file.lock().unwrap();
         //println!("Flushing file transport");
