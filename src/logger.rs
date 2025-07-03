@@ -143,12 +143,12 @@ impl Logger {
     }
 
     fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
-        if !Self::is_level_enabled(&entry.level, options) {
+        //TODO: remove this check, it isn't consistent with winstonjs, but may ensure consistent message structure and prevent unnecessary writes
+        if entry.message.is_empty() && entry.meta.is_empty() {
             return;
         }
 
-        //TODO: remove this check, it isn't consistent with winstonjs, but may ensure consistent message structure and prevent unnecessary writes
-        if entry.message.is_empty() && entry.meta.is_empty() {
+        if !Self::is_level_enabled(&entry.level, options) {
             return;
         }
 
