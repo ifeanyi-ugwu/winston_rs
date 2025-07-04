@@ -291,10 +291,10 @@ impl Logger {
         }
 
         // Now try to send the new entry again
-        if let Err(e) = self.sender.try_send(LogMessage::Entry(entry.clone())) {
+        if let Err(e) = self.sender.try_send(LogMessage::Entry(entry)) {
             eprintln!(
-                "[winston] Failed to log after dropping oldest. Dropping current message: {}",
-                entry.message
+                "[winston] Failed to log after dropping oldest. Dropping current message: {:?}",
+                e.into_inner()
             );
         }
     }
