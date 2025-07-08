@@ -2,7 +2,8 @@
 use logform::{Format, LogInfo};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use winston_proxy_transport::Proxy;
 use winston_transport::{LogQuery, Transport};
@@ -10,7 +11,7 @@ use winston_transport::{LogQuery, Transport};
 pub struct FileTransportOptions {
     pub level: Option<String>,
     pub format: Option<Format>,
-    pub filename: Option<String>,
+    pub filename: Option<PathBuf>,
     /*
     unused yet
     pub dirname: Option<String>,
@@ -29,6 +30,7 @@ pub struct FileTransportOptions {
 pub struct FileTransport {
     file: Mutex<BufWriter<File>>,
     options: FileTransportOptions,
+    proxy_lock: Mutex<()>,
 }
 
 impl FileTransport {
@@ -47,6 +49,7 @@ impl FileTransport {
         FileTransport {
             file: Mutex::new(writer),
             options,
+            proxy_lock: Mutex::new(()),
         }
     }
 
@@ -213,78 +216,91 @@ impl Drop for FileTransport {
 
 impl Proxy for FileTransport {
     fn proxy(&self, target: &dyn Proxy) -> Result<usize, String> {
-        let path = self
+        let _lock = self
+            .proxy_lock
+            .lock()
+            .map_err(|_| "Failed to acquire proxy lock")?;
+
+        let log_file_path = self
             .options
             .filename
             .as_ref()
             .ok_or("No file path provided")?;
+        // let backup_path = path.with_extension("bak");
 
-        // First get a lock and flush any pending writes
+        let mut counter = 0;
+        let backup_path = loop {
+            let candidate = log_file_path.with_extension(format!("bak{}", counter));
+            if !candidate.exists() {
+                break candidate;
+            }
+            counter += 1;
+        };
+
+        /*let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap();
+        let backup_path = log_file_path.with_extension(format!("{}.bak", nanos));
+        if backup_path.exists() {
+            // Rare, but possible — maybe try again with a different timestamp or UUID
+        }*/
+
+        // Lock file, flush pending writes, and rename it to avoid data loss
         let mut file_guard = self
             .file
             .lock()
-            .map_err(|_| "Failed to acquire file lock".to_string())?;
-
+            .map_err(|_| "Failed to acquire file lock")?;
         file_guard
             .flush()
             .map_err(|e| format!("Failed to flush pending writes: {}", e))?;
 
-        // Create a separate reader while holding the lock
+        std::fs::rename(log_file_path, &backup_path)
+            .map_err(|e| format!("Failed to rename file: {}", e))?;
+        let _new_log_file = File::create(log_file_path)
+            .map_err(|e| format!("Failed to create new log file: {}", e))?;
+
+        drop(file_guard); // Release lock so new logs can be written
+
+        // Open the backup log file for streaming
         let file =
-            File::open(path).map_err(|e| format!("Failed to open file for reading: {}", e))?;
-        let reader = BufReader::new(file);
+            File::open(&backup_path).map_err(|e| format!("Failed to open backup log: {}", e))?;
+        let mut reader = BufReader::new(file);
 
-        let mut log_entries = Vec::new();
+        let mut line = String::new();
+        let mut log_count = 0;
 
-        for line in reader.lines() {
-            let line = line.map_err(|e| format!("Failed to read log line: {}", e))?;
+        // Read line by line and send immediately
+        while reader
+            .read_line(&mut line)
+            .map_err(|e| format!("Failed to read log line: {}", e))?
+            > 0
+        {
             if let Some(log) = self.parse_log_entry(&line) {
-                log_entries.push(log);
+                target.ingest(vec![log])?; // Directly send each log
+                log_count += 1;
             }
+            line.clear(); // Clear buffer for next line
         }
 
-        let log_count = log_entries.len();
-        if log_count == 0 {
-            return Ok(0);
-        }
-
-        // Send logs to target
-        target.ingest(log_entries)?;
-
-        // Truncate the file using the writer
-        file_guard
-            .get_mut()
-            .set_len(0)
-            .map_err(|e| format!("Failed to clear file: {}", e))?;
-
-        // Seek back to start
-        file_guard
-            .rewind()
-            .map_err(|e| format!("Failed to rewind after clear: {}", e))?;
+        // Delete backup file after processing
+        std::fs::remove_file(&backup_path)
+            .map_err(|e| format!("Failed to delete backup file: {}", e))?;
 
         Ok(log_count)
     }
 
     fn ingest(&self, logs: Vec<LogInfo>) -> Result<(), String> {
-        let path = self
-            .options
-            .filename
-            .as_ref()
-            .ok_or("No file path provided")?;
-
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .map_err(|e| format!("Failed to open file: {}", e))?;
+        let mut file = self
+            .file
+            .lock()
+            .map_err(|e| format!("Failed to acquire file lock for ingest: {}", e))?;
 
         for log in logs {
-            let formatted_log = match &self.options.format {
-                Some(format) => format
-                    .transform(log.clone(), None)
-                    .ok_or_else(|| "Transform failed".to_string())?,
-                None => log,
-            };
+            let formatted_log = self
+                .options
+                .format
+                .as_ref()
+                .map(|format| format.transform(log.clone(), None))
+                .unwrap_or(Some(log))
+                .ok_or_else(|| "Transform failed".to_string())?;
 
             writeln!(file, "{}", formatted_log.message)
                 .map_err(|e| format!("Failed to write log: {}", e))?;
@@ -297,7 +313,7 @@ impl Proxy for FileTransport {
 pub struct FileTransportBuilder {
     level: Option<String>,
     format: Option<Format>,
-    filename: Option<String>,
+    filename: Option<PathBuf>,
 }
 
 impl FileTransportBuilder {
@@ -319,7 +335,7 @@ impl FileTransportBuilder {
         self
     }
 
-    pub fn filename<T: Into<String>>(mut self, filename: T) -> Self {
+    pub fn filename<T: Into<PathBuf>>(mut self, filename: T) -> Self {
         self.filename = Some(filename.into());
         self
     }
