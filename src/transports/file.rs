@@ -226,8 +226,8 @@ impl Proxy for FileTransport {
             .filename
             .as_ref()
             .ok_or("No file path provided")?;
-        // let backup_path = path.with_extension("bak");
 
+        // Generate backup path
         let mut counter = 0;
         let backup_path = loop {
             let candidate = log_file_path.with_extension(format!("bak{}", counter));
@@ -237,33 +237,38 @@ impl Proxy for FileTransport {
             counter += 1;
         };
 
-        /*let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-        let backup_path = log_file_path.with_extension(format!("{}.bak", nanos));
-        if backup_path.exists() {
-            // Rare, but possible — maybe try again with a different timestamp or UUID
-        }*/
+        // Lock file and flush pending writes
+        {
+            let mut file_guard = self
+                .file
+                .lock()
+                .map_err(|_| "Failed to acquire file lock")?;
+            file_guard
+                .flush()
+                .map_err(|e| format!("Failed to flush pending writes: {}", e))?;
+        } // Drop the lock to release the file handle
 
-        // Lock file, flush pending writes, and rename it to avoid data loss
-        let mut file_guard = self
-            .file
-            .lock()
-            .map_err(|_| "Failed to acquire file lock")?;
-        file_guard
-            .flush()
-            .map_err(|e| format!("Failed to flush pending writes: {}", e))?;
-
+        // Rename file
         std::fs::rename(log_file_path, &backup_path)
             .map_err(|e| format!("Failed to rename file: {}", e))?;
-        let _new_log_file = File::create(log_file_path)
+
+        // Create new log file and update the BufWriter
+        let new_log_file = File::create(log_file_path)
             .map_err(|e| format!("Failed to create new log file: {}", e))?;
 
-        drop(file_guard); // Release lock so new logs can be written
+        // Replace the old BufWriter with a new one pointing to the new file
+        {
+            let mut file_guard = self
+                .file
+                .lock()
+                .map_err(|_| "Failed to acquire file lock")?;
+            *file_guard = BufWriter::new(new_log_file);
+        }
 
         // Open the backup log file for streaming
         let file =
             File::open(&backup_path).map_err(|e| format!("Failed to open backup log: {}", e))?;
         let mut reader = BufReader::new(file);
-
         let mut line = String::new();
         let mut log_count = 0;
 
@@ -306,6 +311,9 @@ impl Proxy for FileTransport {
                 .map_err(|e| format!("Failed to write log: {}", e))?;
         }
 
+        // Flush after writing batch
+        file.flush()
+            .map_err(|e| format!("Failed to flush after ingest: {}", e))?;
         Ok(())
     }
 }
@@ -348,5 +356,65 @@ impl FileTransportBuilder {
             // Set other fields as needed
         };
         FileTransport::new(options)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use logform::{json, timestamp};
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+    use winston_proxy_transport::ProxyTransport;
+
+    #[test]
+    fn test_file_transport_proxy() -> Result<(), String> {
+        // Clean up any existing test files
+        let _ = std::fs::remove_file("test_source.log");
+        let _ = std::fs::remove_file("test_target.log");
+
+        let source_transport =
+            Arc::new(FileTransport::builder().filename("test_source.log").build());
+        let target_transport = Arc::new(
+            FileTransport::builder()
+                .filename("test_target.log")
+                .format(json())
+                .build(),
+        );
+
+        let proxy_interval = Duration::from_secs(1);
+        let proxy_transport = ProxyTransport::new(
+            source_transport.clone(),
+            target_transport.clone(),
+            proxy_interval,
+        );
+
+        let log = LogInfo::new("info", "Test message");
+        let log = timestamp().transform(log.clone(), None).unwrap();
+        let log = json().transform(log.clone(), None).unwrap();
+
+        proxy_transport.log(log);
+
+        // Wait for the proxying to complete
+        thread::sleep(proxy_interval * 2);
+
+        let source_logs_after = source_transport.query(&LogQuery::new())?;
+        let target_logs_after = target_transport.query(&LogQuery::new())?;
+
+        assert!(
+            source_logs_after.is_empty(),
+            "Source log file should be empty after proxying"
+        );
+        assert_eq!(
+            target_logs_after.len(),
+            1,
+            "Target log file should contain the proxied log"
+        );
+
+        // Clean up after test
+        let _ = std::fs::remove_file("test_source.log");
+        let _ = std::fs::remove_file("test_target.log");
+        Ok(())
     }
 }
