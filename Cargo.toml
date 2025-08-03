@@ -31,5 +31,9 @@ criterion = "0.5.1"
 name = "logger_benchmark"
 harness = false
 
+[[bench]]
+name = "global_logger_performance"
+harness = false
+
 [profile.bench]
 debug = true
