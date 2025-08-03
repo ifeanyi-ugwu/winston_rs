@@ -20,11 +20,13 @@ pub enum LogMessage {
     Flush,
 }
 
+#[derive(Debug)]
 struct SharedState {
     options: LoggerOptions,
     buffer: VecDeque<LogInfo>,
 }
 
+#[derive(Debug)]
 pub struct Logger {
     worker_thread: Mutex<Option<thread::JoinHandle<()>>>,
     sender: Sender<LogMessage>,
@@ -205,11 +207,13 @@ impl Logger {
         let mut results = Vec::new();
 
         // First, query the buffered entries
-        for entry in &state.buffer {
-            if options.matches(entry) {
-                results.push(entry.clone());
-            }
-        }
+        results.extend(
+            state
+                .buffer
+                .iter()
+                .filter(|entry| options.matches(entry))
+                .cloned(),
+        );
 
         // Then, query each transport
         if let Some(transports) = state.options.get_transports() {
@@ -340,39 +344,34 @@ impl Logger {
         LoggerBuilder::new()
     }
 
+    /// Updates the logger configuration with new options, following this fallback chain:
+    /// new options -> existing options -> defaults. Always clears existing transports
+    /// and processes buffered entries after updating.
+    ///
+    /// Note: The backpressure strategy and channel capacity are not reconfigured, as they are only used during logger creation.
+    ///
+    /// # Arguments
+    /// * `new_options` - Optional new configuration. If `None`, the existing configuration is retained.
     pub fn configure(&self, new_options: Option<LoggerOptions>) {
         let mut state = self.shared_state.write();
+        let default_options = LoggerOptions::default();
 
-        // Clear existing transports
         if let Some(t) = state.options.transports.as_mut() {
             t.clear();
         }
 
-        // Create a new default options instance
-        let default_options = LoggerOptions::default();
-
-        // Apply new options if provided
         if let Some(options) = new_options {
-            // Format: use the new format if provided, otherwise use the existing format or default to JSON
-            if let Some(format) = options.format {
-                state.options.format = Some(format);
-            } else if state.options.format.is_none() {
-                state.options.format.clone_from(&default_options.format)
-            }
+            state.options.format = options
+                .format
+                .or_else(|| state.options.format.take().or(default_options.format));
 
-            // Levels: use the new levels if provided, otherwise use the existing levels or default
-            if let Some(levels) = options.levels {
-                state.options.levels = Some(levels);
-            } else if state.options.levels.is_none() {
-                state.options.levels.clone_from(&default_options.levels)
-            }
+            state.options.levels = options
+                .levels
+                .or_else(|| state.options.levels.take().or(default_options.levels));
 
-            // Level: use the new level if provided, otherwise use the existing level or default to "info"
-            if let Some(level) = options.level {
-                state.options.level = Some(level);
-            } else if state.options.level.is_none() {
-                state.options.level.clone_from(&default_options.level)
-            }
+            state.options.level = options
+                .level
+                .or_else(|| state.options.level.take().or(default_options.level));
 
             // Add all transports we have been provided
             if let Some(transports) = options.transports {
