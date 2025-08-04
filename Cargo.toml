@@ -15,12 +15,12 @@ categories = ["development-tools::debugging"]
 chrono = "0.4.38"
 crossbeam-channel = "0.5.13"
 lazy_static = "1.5.0"
-logform = "0.4.0"
+logform = "0.5.1"
 parking_lot = "0.12.3"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
-winston_proxy_transport = "0.2.0"
-winston_transport = "0.4.2"
+winston_proxy_transport = "0.3.0"
+winston_transport = "0.5.0"
 
 
 [dev-dependencies]

@@ -26,14 +26,6 @@ impl Transport for MockTransport {
         logs.push(format!("{} - {}", info.level, info.message));
         //println!("Logging: {} - {}", info.level, info.message);
     }
-
-    fn get_level(&self) -> Option<&String> {
-        None
-    }
-
-    fn get_format(&self) -> Option<&winston::format::Format> {
-        None
-    }
 }
 
 #[test]

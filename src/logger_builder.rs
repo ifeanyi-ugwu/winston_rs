@@ -2,7 +2,7 @@ use crate::{
     logger_options::{BackpressureStrategy, LoggerOptions},
     Logger,
 };
-use logform::Format;
+use logform::{Format, LogInfo};
 use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
 
@@ -22,7 +22,10 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn format(mut self, format: Format) -> Self {
+    pub fn format<F>(mut self, format: F) -> Self
+    where
+        F: Format<Input = LogInfo> + Send + Sync + 'static,
+    {
         self.options = self.options.format(format);
         self
     }

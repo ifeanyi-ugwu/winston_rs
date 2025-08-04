@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use winston_proxy_transport::Proxy;
 use winston_transport::{LogQuery, Transport};
 
 pub struct FileTransportOptions {
     pub level: Option<String>,
-    pub format: Option<Format>,
+    pub format: Option<Arc<dyn Format<Input = LogInfo> + Send + Sync>>,
     pub filename: Option<PathBuf>,
     /*
     unused yet
@@ -128,8 +128,8 @@ impl Transport for FileTransport {
         self.options.level.as_ref()
     }
 
-    fn get_format(&self) -> Option<&Format> {
-        self.options.format.as_ref()
+    fn get_format(&self) -> Option<Arc<dyn Format<Input = LogInfo> + Send + Sync + 'static>> {
+        self.options.format.as_ref().cloned()
     }
 
     fn query(&self, query: &LogQuery) -> Result<Vec<LogInfo>, String> {
@@ -303,7 +303,7 @@ impl Proxy for FileTransport {
                 .options
                 .format
                 .as_ref()
-                .map(|format| format.transform(log.clone(), None))
+                .map(|format| format.transform(log.clone()))
                 .unwrap_or(Some(log))
                 .ok_or_else(|| "Transform failed".to_string())?;
 
@@ -320,7 +320,7 @@ impl Proxy for FileTransport {
 
 pub struct FileTransportBuilder {
     level: Option<String>,
-    format: Option<Format>,
+    format: Option<Arc<dyn Format<Input = LogInfo> + Send + Sync>>,
     filename: Option<PathBuf>,
 }
 
@@ -338,8 +338,11 @@ impl FileTransportBuilder {
         self
     }
 
-    pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
+    pub fn format<F>(mut self, format: F) -> Self
+    where
+        F: Format<Input = LogInfo> + Send + Sync + 'static,
+    {
+        self.format = Some(Arc::new(format));
         self
     }
 
@@ -391,8 +394,8 @@ mod tests {
         );
 
         let log = LogInfo::new("info", "Test message");
-        let log = timestamp().transform(log.clone(), None).unwrap();
-        let log = json().transform(log.clone(), None).unwrap();
+        let log = timestamp().transform(log.clone()).unwrap();
+        let log = json().transform(log.clone()).unwrap();
 
         proxy_transport.log(log);
 

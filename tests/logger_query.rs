@@ -1,6 +1,9 @@
 mod common;
 
-use winston::{format, log, transports, LogQuery, Logger};
+use winston::{
+    format::{self, Format},
+    log, transports, LogQuery, Logger,
+};
 
 #[test]
 fn test_logging_and_querying() {
@@ -12,7 +15,7 @@ fn test_logging_and_querying() {
                 .filename(temp_path.clone())
                 .build(),
         )
-        .format(format::combine(vec![format::timestamp(), format::json()]))
+        .format(format::chain!(format::timestamp(), format::json()))
         .build();
 
     // Log some messages

@@ -4,7 +4,7 @@ use common::DelayedTransport;
 use std::time::{Duration, Instant};
 use winston::{
     close, configure,
-    format::{self, LogInfo},
+    format::{self, Format, LogInfo},
     log,
     transports::stdout,
     Logger, LoggerOptions,
@@ -22,7 +22,7 @@ fn test_default_logger() {
         LoggerOptions::new()
             .level("debug")
             .add_transport(stdout())
-            .format(format::combine(vec![format::timestamp(), format::json()])),
+            .format(format::chain!(format::timestamp(), format::json())),
     ));
 
     log!(info, "This will use the new configuration");
@@ -35,7 +35,7 @@ fn test_new_macros() {
         LoggerOptions::new()
             .level("debug")
             .add_transport(stdout())
-            .format(format::combine(vec![format::timestamp(), format::json()])),
+            .format(format::chain!(format::timestamp(), format::json())),
     ));
 
     // Basic usage
@@ -90,7 +90,7 @@ fn test_logger_non_blocking() {
     let logger = Logger::builder()
         .add_transport(stdout())
         .add_transport(delayed_transport)
-        .format(format::pretty_print().with_option("colorize", "true"))
+        .format(format::pretty_print().with_colorize(true))
         .build();
 
     // Measure time to enqueue all messages

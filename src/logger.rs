@@ -157,9 +157,9 @@ impl Logger {
         if let Some(transports) = options.get_transports() {
             for transport in transports {
                 let formatted_message = match (transport.get_format(), &options.format) {
-                    (Some(tf), Some(_lf)) => tf.transform(entry.clone(), None),
-                    (Some(tf), None) => tf.transform(entry.clone(), None),
-                    (None, Some(lf)) => lf.transform(entry.clone(), None),
+                    (Some(tf), Some(_lf)) => tf.transform(entry.clone()),
+                    (Some(tf), None) => tf.transform(entry.clone()),
+                    (None, Some(lf)) => lf.transform(entry.clone()),
                     (None, None) => Some(entry.clone()),
                 };
                 if let Some(msg) = formatted_message {

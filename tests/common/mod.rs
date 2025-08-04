@@ -1,5 +1,5 @@
 use std::{thread, time::Duration};
-use winston::format::{Format, LogInfo};
+use winston::format::LogInfo;
 use winston_transport::Transport;
 
 pub struct DelayedTransport {
@@ -21,14 +21,6 @@ impl Transport for DelayedTransport {
         // Directly delay in the current thread (synchronous for testing)
         thread::sleep(delay);
         println!("Delayed log: {} - {}", level, message);
-    }
-
-    fn get_level(&self) -> Option<&String> {
-        None
-    }
-
-    fn get_format(&self) -> Option<&Format> {
-        None
     }
 }
 

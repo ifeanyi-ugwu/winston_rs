@@ -1,7 +1,8 @@
 mod common;
 
+use logform::chain;
 use winston::{
-    format::{align, colorize, combine, json, simple, timestamp, Format, LogInfo},
+    format::{align, colorize, json, simple, timestamp, Format, LogInfo},
     log, transports, Logger,
 };
 
@@ -11,7 +12,16 @@ fn test_default_logger() {
     log!(default_logger, info, "Testing default logger");
     // Add assertions or checks if needed
 
-    let custom_logger = Logger::builder().format(Format::new(|_, _| None)).build();
+    struct NoOpFormat;
+    impl Format for NoOpFormat {
+        type Input = LogInfo;
+
+        fn transform(&self, _input: Self::Input) -> Option<Self::Input> {
+            None
+        }
+    }
+
+    let custom_logger = Logger::builder().format(NoOpFormat).build();
     log!(custom_logger, info, "hi there")
 }
 
@@ -22,16 +32,16 @@ fn test_custom_logger() {
 
     let custom_logger = Logger::builder()
         .level("debug")
-        .format(combine(vec![
+        .format(chain!(
             colorize()
-                .with_option(
-                    "colors",
-                    &serde_json::json!({"info": ["green"],"error":["red"]}).to_string(),
-                )
-                .with_option("all", "true"),
+                .with_colors(vec![
+                    ("info".to_string(), serde_json::json!(["green"])),
+                    ("error".to_string(), serde_json::json!(["red"]))
+                ])
+                .with_all(true),
             align(),
             simple(),
-        ]))
+        ))
         .add_transport(transports::stdout())
         .add_transport(file_transport)
         .build();
@@ -61,7 +71,7 @@ fn test_logger_with_only_file_transport() {
     let logger_with_only_file_transport = Logger::builder()
         .level("info")
         .add_transport(file_transport)
-        .format(combine(vec![timestamp(), json()]))
+        .format(chain!(timestamp(), json()))
         .build();
 
     log!(

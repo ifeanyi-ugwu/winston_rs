@@ -1,5 +1,5 @@
 use crate::logger_levels::LoggerLevels;
-use logform::{json, Format};
+use logform::{json, Format, LogInfo};
 use std::{collections::HashMap, fmt, sync::Arc};
 use winston_transport::Transport;
 
@@ -18,10 +18,10 @@ impl Clone for DebugTransport {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LoggerOptions {
     pub levels: Option<LoggerLevels>,
-    pub format: Option<Format>,
+    pub format: Option<Arc<dyn Format<Input = LogInfo> + Send + Sync>>,
     pub level: Option<String>,
     pub transports: Option<Vec<DebugTransport>>,
     pub channel_capacity: Option<usize>,
@@ -49,8 +49,11 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `format` - The log format to be used.
-    pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
+    pub fn format<F>(mut self, format: F) -> Self
+    where
+        F: Format<Input = LogInfo> + Send + Sync + 'static,
+    {
+        self.format = Some(Arc::new(format));
         self
     }
 
@@ -129,10 +132,24 @@ impl Default for LoggerOptions {
             levels: Some(LoggerLevels::default()),
             level: Some("info".to_string()),
             transports: Some(Vec::new()),
-            format: Some(json()),
+            format: Some(Arc::new(json())),
             channel_capacity: Some(1024),
             backpressure_strategy: Some(BackpressureStrategy::Block),
         }
+    }
+}
+
+impl std::fmt::Debug for LoggerOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoggerOptions")
+            .field("levels", &self.levels)
+            .field("level", &self.level)
+            .field("transports", &self.transports)
+            .field("channel_capacity", &self.channel_capacity)
+            .field("backpressure_strategy", &self.backpressure_strategy)
+            // For the format field, just print a placeholder because it can't be debugged:
+            .field("format", &"<Format trait object>")
+            .finish()
     }
 }
 
