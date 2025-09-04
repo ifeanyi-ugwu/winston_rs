@@ -41,3 +41,5 @@ debug = true
 
 [features]
 log-backend = ["log"]
+#log-backend-kv = ["log-backend", "log/kv"]
+log-backend-kv = ["log-backend", "log/kv_unstable"]

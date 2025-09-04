@@ -485,6 +485,17 @@ impl Log for Logger {
             }
         }
 
+        // Add key-values if kv feature is enabled
+        #[cfg(feature = "log-backend-kv")]
+        {
+            let mut kv_visitor = KeyValueCollector::new();
+            record.key_values().visit(&mut kv_visitor).ok();
+
+            for (key, value) in kv_visitor.collected {
+                meta.insert(key, value);
+            }
+        }
+
         let log_info = LogInfo {
             level: record.level().as_str().to_lowercase(),
             message: record.args().to_string(),
@@ -496,6 +507,47 @@ impl Log for Logger {
 
     fn flush(&self) {
         let _ = self.flush();
+    }
+}
+
+#[cfg(feature = "log-backend-kv")]
+struct KeyValueCollector {
+    collected: Vec<(String, serde_json::Value)>,
+}
+
+#[cfg(feature = "log-backend-kv")]
+impl KeyValueCollector {
+    fn new() -> Self {
+        Self {
+            collected: Vec::new(),
+        }
+    }
+}
+
+#[cfg(feature = "log-backend-kv")]
+impl<'kvs> log::kv::Visitor<'kvs> for KeyValueCollector {
+    fn visit_pair(
+        &mut self,
+        key: log::kv::Key<'kvs>,
+        value: log::kv::Value<'kvs>,
+    ) -> Result<(), log::kv::Error> {
+        let json_value = if let Some(s) = value.to_borrowed_str() {
+            serde_json::Value::String(s.to_string())
+        } else if let Some(i) = value.to_i64() {
+            serde_json::Value::Number(serde_json::Number::from(i))
+        } else if let Some(u) = value.to_u64() {
+            serde_json::Value::Number(serde_json::Number::from(u))
+        } else if let Some(f) = value.to_f64() {
+            serde_json::Number::from_f64(f)
+                .map(serde_json::Value::Number)
+                .unwrap_or_else(|| serde_json::Value::String(f.to_string()))
+        } else {
+            // Fallback to string representation
+            serde_json::Value::String(format!("{}", value))
+        };
+
+        self.collected.push((key.as_str().to_string(), json_value));
+        Ok(())
     }
 }
 
