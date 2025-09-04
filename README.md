@@ -309,6 +309,40 @@ log!(logger, info, "Using specific logger instance");
 4. **Level filtering**: Set appropriate minimum levels to avoid unnecessary processing
 5. **Format chaining order**: Place expensive formats (like colorization) last in the chain
 
+## Integration with the `log` Crate
+
+Winston can also act as a backend for the widely used [`log`](https://crates.io/crates/log) facade.  
+This means that existing libraries and crates which emit logs via `log` will automatically route their output through Winston’s transports and formatting system.
+
+Enable the feature in `Cargo.toml`:
+
+```toml
+[dependencies]
+winston = { version = "0.2", features = ["log-backend"] }
+```
+
+Then initialize Winston as the global logger:
+
+```rust
+use winston::Logger;
+
+fn main() {
+    Logger::default().init_as_global().unwrap();
+
+    log::info!("Hello from the log crate!");
+    log::warn!("This also goes through Winston transports");
+}
+
+```
+
+Notes:
+
+- Key–value metadata support from log is available with the log-backend-kv feature.
+
+- Winston’s transports, levels, formats, and backpressure strategies apply seamlessly.
+
+- Useful when integrating Winston into projects that already rely on the log ecosystem.
+
 ## Installation
 
 Add to your `Cargo.toml`:
