@@ -568,37 +568,3 @@ impl Logger {
         logger.init_as_global()
     }
 }
-
-#[cfg(all(test, feature = "log-backend"))]
-mod tests {
-    use super::*;
-    use crate::{logger_options::LoggerOptions, transports};
-    use std::sync::Arc;
-
-    #[test]
-    fn test_log_backend_integration() {
-        // Create a logger with console transport
-        let mut options = LoggerOptions::default();
-        options.transports = Some(vec![crate::logger_options::DebugTransport(Arc::new(
-            transports::stdout(),
-        ))]);
-
-        let logger = Logger::new(Some(options));
-
-        // Initialize as global logger
-        logger
-            .init_as_global()
-            .expect("Failed to initialize global logger");
-
-        // Test logging through the log crate
-        log::info!("This is an info message from the log crate");
-        log::warn!("This is a warning message");
-        log::error!("This is an error message");
-
-        // Flush to ensure all messages are processed
-        log::logger().flush();
-
-        // The test passes if no panics occur and messages appear in console
-        // In a real test, you might want to capture the output and verify it
-    }
-}

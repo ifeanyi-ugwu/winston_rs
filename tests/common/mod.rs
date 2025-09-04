@@ -40,3 +40,33 @@ pub fn delete_file_if_exists(file_path: &str) {
         });
     }
 }
+
+use std::sync::{Arc, Mutex};
+use winston_transport::LogQuery;
+
+#[derive(Debug, Default)]
+pub struct MemoryTransport {
+    pub logs: Arc<Mutex<Vec<LogInfo>>>,
+}
+
+impl MemoryTransport {
+    pub fn new() -> Self {
+        Self {
+            logs: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+}
+
+impl Transport for MemoryTransport {
+    fn log(&self, info: LogInfo) {
+        self.logs.lock().unwrap().push(info);
+    }
+
+    fn flush(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn query(&self, _options: &LogQuery) -> Result<Vec<LogInfo>, String> {
+        Ok(self.logs.lock().unwrap().clone())
+    }
+}
