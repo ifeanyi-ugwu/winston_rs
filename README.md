@@ -318,7 +318,7 @@ Enable the feature in `Cargo.toml`:
 
 ```toml
 [dependencies]
-winston = { version = "0.2", features = ["log-backend"] }
+winston = { version = "0.5", features = ["log-backend"] }
 ```
 
 Then initialize Winston as the global logger:
@@ -349,7 +349,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-winston = "0.2"
+winston = "0.5"
 ```
 
 Or use cargo:
