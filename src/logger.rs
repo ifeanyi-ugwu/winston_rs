@@ -451,10 +451,39 @@ impl Log for Logger {
 
         // Convert log::Record to LogInfo
         let mut meta = std::collections::HashMap::new();
+        // Add timestamp
         meta.insert(
             "timestamp".to_string(),
             serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
         );
+        // Add target (module path)
+        meta.insert(
+            "target".to_string(),
+            serde_json::Value::String(record.target().to_string()),
+        );
+        // Add file location if available
+        if let Some(file) = record.file() {
+            meta.insert(
+                "file".to_string(),
+                serde_json::Value::String(file.to_string()),
+            );
+        }
+        // Add line number if available
+        if let Some(line) = record.line() {
+            meta.insert(
+                "line".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(line)),
+            );
+        }
+        // Add module path if different from target
+        if let Some(module_path) = record.module_path() {
+            if module_path != record.target() {
+                meta.insert(
+                    "module_path".to_string(),
+                    serde_json::Value::String(module_path.to_string()),
+                );
+            }
+        }
 
         let log_info = LogInfo {
             level: record.level().as_str().to_lowercase(),
