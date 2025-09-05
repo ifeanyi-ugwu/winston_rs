@@ -218,6 +218,20 @@ impl Logger {
         let options = &state.options;
         if let Some(transports) = options.get_transports() {
             for transport in transports {
+                // Check if this transport cares about the level
+                let effective_level = transport.get_level().or_else(|| options.level.as_ref());
+
+                if let (Some(levels), Some(effective_level)) = (&options.levels, effective_level) {
+                    if let (Some(entry_sev), Some(required_sev)) = (
+                        levels.get_severity(&entry.level),
+                        levels.get_severity(effective_level),
+                    ) {
+                        if entry_sev > required_sev {
+                            continue; // skip: not enabled
+                        }
+                    }
+                }
+
                 let formatted_message = match (transport.get_format(), &options.format) {
                     (Some(tf), Some(_lf)) => tf.transform(entry.clone()),
                     (Some(tf), None) => tf.transform(entry.clone()),
