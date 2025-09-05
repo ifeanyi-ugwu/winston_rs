@@ -1,3 +1,4 @@
+use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -14,6 +15,29 @@ impl LoggerLevels {
 
     pub fn get_severity(&self, key: &str) -> Option<u8> {
         self.levels.get(key).copied()
+    }
+
+    /*/// Returns an iterator over (level_name, severity) pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &u8)> {
+        self.levels.iter()
+    }*/
+}
+
+impl IntoIterator for LoggerLevels {
+    type Item = (String, u8);
+    type IntoIter = std::collections::hash_map::IntoIter<String, u8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.levels.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a LoggerLevels {
+    type Item = (&'a String, &'a u8);
+    type IntoIter = Iter<'a, String, u8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.levels.iter()
     }
 }
 

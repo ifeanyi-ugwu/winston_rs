@@ -6,7 +6,7 @@ use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::LogInfo;
 use parking_lot::RwLock;
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     sync::{Arc, Condvar, Mutex},
     thread,
 };
@@ -24,6 +24,10 @@ pub enum LogMessage {
 struct SharedState {
     options: LoggerOptions,
     buffer: VecDeque<LogInfo>,
+    // Cache the effective levels for fast lookup
+    effective_levels: HashSet<String>,
+    // Cache the minimum severity needed for any transport to accept a log
+    min_required_severity: Option<u8>,
 }
 
 #[derive(Debug)]
@@ -43,9 +47,13 @@ impl Logger {
         let flush_complete = Arc::new((Mutex::new(false), Condvar::new()));
 
         let shared_receiver = Arc::new(receiver);
+        // Pre-compute effective levels
+        let (effective_levels, min_required_severity) = Self::compute_effective_levels(&options);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
+            effective_levels,
+            min_required_severity,
         }));
 
         let worker_receiver = Arc::clone(&shared_receiver);
@@ -68,6 +76,58 @@ impl Logger {
         }
     }
 
+    /// Compute all effective log levels that should be processed
+    fn compute_effective_levels(options: &LoggerOptions) -> (HashSet<String>, Option<u8>) {
+        let levels = options.levels.clone().unwrap_or_default();
+        let global_level = options.level.as_deref().unwrap_or("info");
+        let mut effective_levels = HashSet::new();
+        let mut min_severity: Option<u8> = None;
+
+        // Get global level severity
+        if let Some(global_severity) = levels.get_severity(global_level) {
+            min_severity = Some(global_severity);
+
+            // Add all levels that meet the global requirement
+            for (level_name, level_severity) in &levels {
+                if global_severity >= *level_severity {
+                    effective_levels.insert(level_name.clone());
+                }
+            }
+        }
+
+        // Process transport-specific levels
+        if let Some(transports) = options.get_transports() {
+            for transport in transports {
+                if let Some(transport_level) = transport.get_level() {
+                    if let Some(transport_severity) = levels.get_severity(transport_level) {
+                        // Update minimum required severity
+                        min_severity = match min_severity {
+                            Some(current_min) => Some(current_min.max(transport_severity)),
+                            None => Some(transport_severity),
+                        };
+
+                        // Add all levels that meet this transport's requirement
+                        for (level_name, level_severity) in &levels {
+                            if transport_severity >= *level_severity {
+                                effective_levels.insert(level_name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        (effective_levels, min_severity)
+    }
+
+    /// Update the cached levels when configuration changes
+    fn refresh_effective_levels(state: &mut SharedState) {
+        let (effective_levels, min_required_severity) =
+            Self::compute_effective_levels(&state.options);
+        state.effective_levels = effective_levels;
+        state.min_required_severity = min_required_severity;
+    }
+
     fn worker_loop(
         receiver: Arc<Receiver<LogMessage>>,
         shared_state: Arc<RwLock<SharedState>>,
@@ -86,7 +146,7 @@ impl Logger {
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
                         Self::process_buffered_entries(&mut state);
-                        Self::process_entry(&entry, &state.options)
+                        Self::process_entry(&entry, &state)
                         //Self::process_entry(&entry, &state.options);
                         //Self::process_buffered_entries(&mut state);
                     }
@@ -109,6 +169,7 @@ impl Logger {
                     }
                     // Add any other options that need to be configurable
 
+                    Self::refresh_effective_levels(&mut state);
                     // Process buffered entries with new configuration
                     Self::process_buffered_entries(&mut state);
                 }
@@ -140,20 +201,21 @@ impl Logger {
 
     fn process_buffered_entries(state: &mut SharedState) {
         while let Some(entry) = state.buffer.pop_front() {
-            Self::process_entry(&entry, &state.options);
+            Self::process_entry(&entry, &state);
         }
     }
 
-    fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
+    fn process_entry(entry: &LogInfo, state: &SharedState) {
         //TODO: remove this check, it isn't consistent with winstonjs, but may ensure consistent message structure and prevent unnecessary writes
         if entry.message.is_empty() && entry.meta.is_empty() {
             return;
         }
 
-        if !Self::is_level_enabled(&entry.level, options) {
+        if !Self::is_level_enabled(&entry.level, &state) {
             return;
         }
 
+        let options = &state.options;
         if let Some(transports) = options.get_transports() {
             for transport in transports {
                 let formatted_message = match (transport.get_format(), &options.format) {
@@ -169,37 +231,23 @@ impl Logger {
         }
     }
 
-    fn is_level_enabled(entry_level: &str, options: &LoggerOptions) -> bool {
-        let levels = options.levels.clone().unwrap_or_default();
-        let global_level = options.level.as_deref().unwrap_or("info");
-
-        // Return false if we can't get severity for the entry level or global level
-        let entry_level_value = match levels.get_severity(entry_level) {
-            Some(value) => value,
-            None => return false,
-        };
-
-        let global_level_value = match levels.get_severity(global_level) {
-            Some(value) => value,
-            None => return false,
-        };
-
-        // If no transports are defined, fall back to the global level comparison
-        if let Some(transports) = options.get_transports() {
-            // Return true if any transport's level is prioritized and matches the severity
-            return transports.iter().any(|transport| {
-                match transport
-                    .get_level()
-                    .and_then(|level| levels.get_severity(level))
-                {
-                    Some(transport_level_value) => transport_level_value >= entry_level_value,
-                    None => global_level_value >= entry_level_value,
+    fn is_level_enabled_by_severity(entry_level: &str, state: &SharedState) -> bool {
+        if let Some(min_required) = state.min_required_severity {
+            if let Some(levels) = &state.options.levels {
+                if let Some(entry_severity) = levels.get_severity(entry_level) {
+                    return min_required >= entry_severity;
                 }
-            });
+            }
         }
+        false
+    }
 
-        // Fallback to global level check if no transports
-        global_level_value >= entry_level_value
+    fn is_level_enabled(entry_level: &str, state: &SharedState) -> bool {
+        if state.effective_levels.contains(entry_level) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
@@ -379,6 +427,7 @@ impl Logger {
             }
         }
 
+        Self::refresh_effective_levels(&mut state);
         // Process buffered entries with new configuration
         Self::process_buffered_entries(&mut state);
     }
@@ -441,7 +490,7 @@ static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
 impl Log for Logger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         let state = self.shared_state.read();
-        Self::is_level_enabled(&metadata.level().as_str().to_lowercase(), &state.options)
+        Self::is_level_enabled(&metadata.level().as_str().to_lowercase(), &state)
     }
 
     fn log(&self, record: &Record) {
