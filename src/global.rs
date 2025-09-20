@@ -1,37 +1,37 @@
-use crate::{Logger, LoggerOptions};
-use lazy_static::lazy_static;
-use logform::LogInfo;
-use std::sync::Arc;
+use crate::Logger;
+use std::sync::{Arc, OnceLock};
 use winston_transport::Transport;
 
-lazy_static! {
-    static ref GLOBAL_LOGGER: Logger = Logger::new(None);
+static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
+
+fn global_logger() -> &'static Logger {
+    GLOBAL_LOGGER.get_or_init(|| Logger::default())
 }
 
-pub fn log(entry: LogInfo) {
-    GLOBAL_LOGGER.log(entry);
+pub fn log(entry: logform::LogInfo) {
+    global_logger().log(entry);
 }
 
-pub fn configure(options: Option<LoggerOptions>) {
-    GLOBAL_LOGGER.configure(options);
-}
-
-pub fn close() {
-    GLOBAL_LOGGER.close();
+pub fn configure(new_options: Option<crate::LoggerOptions>) {
+    global_logger().configure(new_options)
 }
 
 pub fn flush() -> Result<(), String> {
-    GLOBAL_LOGGER.flush()
+    global_logger().flush()
 }
 
-pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<LogInfo>, String> {
-    GLOBAL_LOGGER.query(options)
+pub fn close() {
+    global_logger().close();
+}
+
+pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<logform::LogInfo>, String> {
+    global_logger().query(options)
 }
 
 pub fn add_transport(transport: Arc<dyn Transport>) -> bool {
-    GLOBAL_LOGGER.add_transport(transport)
+    global_logger().add_transport(transport)
 }
 
 pub fn remove_transport(transport: Arc<dyn Transport>) -> bool {
-    GLOBAL_LOGGER.remove_transport(transport)
+    global_logger().remove_transport(transport)
 }
