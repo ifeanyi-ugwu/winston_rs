@@ -495,6 +495,7 @@ impl Default for Logger {
 
 #[cfg(feature = "log-backend")]
 use log::{Log, Metadata, Record};
+#[cfg(feature = "log-backend")]
 use std::sync::OnceLock;
 
 #[cfg(feature = "log-backend")]
