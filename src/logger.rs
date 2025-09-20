@@ -24,8 +24,6 @@ pub enum LogMessage {
 struct SharedState {
     options: LoggerOptions,
     buffer: VecDeque<LogInfo>,
-    // Cache the effective levels for fast lookup
-    effective_levels: HashSet<String>,
     // Cache the minimum severity needed for any transport to accept a log
     min_required_severity: Option<u8>,
 }
@@ -48,11 +46,10 @@ impl Logger {
 
         let shared_receiver = Arc::new(receiver);
         // Pre-compute effective levels
-        let (effective_levels, min_required_severity) = Self::compute_effective_levels(&options);
+        let (_, min_required_severity) = Self::compute_effective_levels(&options);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
-            effective_levels,
             min_required_severity,
         }));
 
@@ -122,9 +119,7 @@ impl Logger {
 
     /// Update the cached levels when configuration changes
     fn refresh_effective_levels(state: &mut SharedState) {
-        let (effective_levels, min_required_severity) =
-            Self::compute_effective_levels(&state.options);
-        state.effective_levels = effective_levels;
+        let (_, min_required_severity) = Self::compute_effective_levels(&state.options);
         state.min_required_severity = min_required_severity;
     }
 
@@ -245,7 +240,7 @@ impl Logger {
         }
     }
 
-    fn is_level_enabled_by_severity(entry_level: &str, state: &SharedState) -> bool {
+    fn is_level_enabled(entry_level: &str, state: &SharedState) -> bool {
         if let Some(min_required) = state.min_required_severity {
             if let Some(levels) = &state.options.levels {
                 if let Some(entry_severity) = levels.get_severity(entry_level) {
@@ -254,14 +249,6 @@ impl Logger {
             }
         }
         false
-    }
-
-    fn is_level_enabled(entry_level: &str, state: &SharedState) -> bool {
-        if state.effective_levels.contains(entry_level) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
