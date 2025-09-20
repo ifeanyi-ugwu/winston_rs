@@ -46,7 +46,7 @@ impl Logger {
 
         let shared_receiver = Arc::new(receiver);
         // Pre-compute effective levels
-        let (_, min_required_severity) = Self::compute_effective_levels(&options);
+        let min_required_severity = Self::compute_min_severity(&options);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
@@ -73,53 +73,32 @@ impl Logger {
         }
     }
 
-    /// Compute all effective log levels that should be processed
-    fn compute_effective_levels(options: &LoggerOptions) -> (HashSet<String>, Option<u8>) {
-        let levels = options.levels.clone().unwrap_or_default();
-        let global_level = options.level.as_deref().unwrap_or("info");
-        let mut effective_levels = HashSet::new();
-        let mut min_severity: Option<u8> = None;
+    fn compute_min_severity(options: &LoggerOptions) -> Option<u8> {
+        let levels = options.levels.as_ref()?;
+        let mut min_severity = options
+            .level
+            .as_deref()
+            .and_then(|lvl| levels.get_severity(lvl));
 
-        // Get global level severity
-        if let Some(global_severity) = levels.get_severity(global_level) {
-            min_severity = Some(global_severity);
-
-            // Add all levels that meet the global requirement
-            for (level_name, level_severity) in &levels {
-                if global_severity >= *level_severity {
-                    effective_levels.insert(level_name.clone());
-                }
-            }
-        }
-
-        // Process transport-specific levels
         if let Some(transports) = options.get_transports() {
             for transport in transports {
                 if let Some(transport_level) = transport.get_level() {
                     if let Some(transport_severity) = levels.get_severity(transport_level) {
-                        // Update minimum required severity
-                        min_severity = match min_severity {
-                            Some(current_min) => Some(current_min.max(transport_severity)),
-                            None => Some(transport_severity),
-                        };
-
-                        // Add all levels that meet this transport's requirement
-                        for (level_name, level_severity) in &levels {
-                            if transport_severity >= *level_severity {
-                                effective_levels.insert(level_name.clone());
-                            }
-                        }
+                        min_severity = Some(
+                            min_severity
+                                .map_or(transport_severity, |cur| cur.max(transport_severity)),
+                        );
                     }
                 }
             }
         }
 
-        (effective_levels, min_severity)
+        min_severity
     }
 
     /// Update the cached levels when configuration changes
     fn refresh_effective_levels(state: &mut SharedState) {
-        let (_, min_required_severity) = Self::compute_effective_levels(&state.options);
+        let min_required_severity = Self::compute_min_severity(&state.options);
         state.min_required_severity = min_required_severity;
     }
 
