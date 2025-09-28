@@ -6,7 +6,7 @@ use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::LogInfo;
 use parking_lot::RwLock;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
     thread,
 };
@@ -461,11 +461,6 @@ impl Default for Logger {
 
 #[cfg(feature = "log-backend")]
 use log::{Log, Metadata, Record};
-#[cfg(feature = "log-backend")]
-use std::sync::OnceLock;
-
-#[cfg(feature = "log-backend")]
-static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
 
 #[cfg(feature = "log-backend")]
 impl Log for Logger {
@@ -578,23 +573,5 @@ impl<'kvs> log::kv::Visitor<'kvs> for KeyValueCollector {
 
         self.collected.push((key.as_str().to_string(), json_value));
         Ok(())
-    }
-}
-
-#[cfg(feature = "log-backend")]
-impl Logger {
-    /// Initialize this logger as the global logger for the `log` crate
-    pub fn init_as_global(self) -> Result<(), log::SetLoggerError> {
-        let logger = GLOBAL_LOGGER.get_or_init(|| self);
-
-        log::set_logger(logger)?;
-        log::set_max_level(log::LevelFilter::Trace);
-        Ok(())
-    }
-
-    /// Create a logger with default options and set it as the global logger
-    pub fn init_default_global() -> Result<(), log::SetLoggerError> {
-        let logger = Logger::new(None);
-        logger.init_as_global()
     }
 }
