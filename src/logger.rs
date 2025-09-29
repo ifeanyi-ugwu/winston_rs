@@ -416,12 +416,18 @@ impl Logger {
 
     /// Adds a transport wrapped in an Arc directly to the logger
     pub fn add_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
+        self.add_logger_transport(LoggerTransport::new(transport))
+    }
+
+    /// Add a pre-configured LoggerTransport with custom level/format
+    pub fn add_logger_transport(&self, transport: LoggerTransport<LogInfo>) -> bool {
         let mut state = self.shared_state.write();
+
         if let Some(transports) = &mut state.options.transports {
-            transports.push(LoggerTransport::new(transport));
+            transports.push(transport);
             true
         } else {
-            state.options.transports = Some(vec![LoggerTransport::new(transport)]);
+            state.options.transports = Some(vec![transport]);
             true
         }
     }
@@ -723,29 +729,57 @@ mod tests {
         #[derive(Clone)]
         struct LeveledTransport {
             logs: Arc<Mutex<Vec<LogInfo>>>,
-            level: String,
         }
 
         impl Transport<LogInfo> for LeveledTransport {
             fn log(&self, info: LogInfo) {
                 self.logs.lock().unwrap().push(info);
             }
+
+            fn query(&self, _: &LogQuery) -> Result<Vec<LogInfo>, String> {
+                Ok(self.logs.lock().unwrap().clone())
+            }
         }
 
-        let logger = Logger::new(Some(LoggerOptions::new().level("trace")));
+        //TODO: add this as a format in logform
+        #[derive(Debug, Clone, Default)]
+        pub struct PassthroughFormat;
+
+        impl PassthroughFormat {
+            pub fn new() -> Self {
+                Self
+            }
+        }
+
+        impl logform::Format for PassthroughFormat {
+            type Input = LogInfo;
+
+            fn transform(&self, info: Self::Input) -> Option<Self::Input> {
+                Some(info)
+            }
+        }
+
+        let logger = Logger::new(Some(
+            LoggerOptions::new()
+                .level("trace")
+                .format(PassthroughFormat::new()),
+        ));
         let transport = Arc::new(LeveledTransport {
             logs: Arc::new(Mutex::new(Vec::new())),
-            level: "error".to_string(),
         });
-        logger.add_transport(transport.clone());
+        let transport = LoggerTransport::new(transport).with_level("error".to_string());
+        logger.add_logger_transport(transport);
 
         logger.log(LogInfo::new("info", "Filtered by transport"));
         logger.log(LogInfo::new("error", "Passes transport filter"));
         logger.flush().unwrap();
 
-        let logs = transport.logs.lock().unwrap();
+        let query = LogQuery::new();
+        let logs = logger.query(&query).unwrap();
+
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].level, "error");
+        assert_eq!(logs[0].message, "Passes transport filter");
     }
 
     #[test]

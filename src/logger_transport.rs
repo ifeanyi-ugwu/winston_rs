@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use logform::Format;
+use logform::{Format, LogInfo};
 use winston_transport::{LogQuery, Transport};
 
 #[derive(Clone)]
@@ -63,5 +63,11 @@ impl<L> fmt::Debug for LoggerTransport<L> {
             .field("level", &self.level)
             .field("format", &self.format.as_ref().map(|_| "Format<...>"))
             .finish()
+    }
+}
+
+impl From<Arc<dyn Transport<LogInfo> + Send + Sync>> for LoggerTransport<LogInfo> {
+    fn from(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
+        LoggerTransport::new(transport)
     }
 }
