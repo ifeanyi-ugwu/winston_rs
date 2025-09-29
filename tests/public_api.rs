@@ -224,7 +224,10 @@ fn test_level_hierarchy() {
 #[test]
 fn test_metadata_preservation() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder()
+        .format(logform::passthrough())
+        .add_transport(transport.clone())
+        .build();
 
     log!(
         logger,

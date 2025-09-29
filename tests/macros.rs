@@ -21,7 +21,10 @@ fn test_log_macro_with_logger_simple_message() {
 #[test]
 fn test_log_macro_with_logger_and_metadata() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder()
+        .format(logform::passthrough())
+        .add_transport(transport.clone())
+        .build();
 
     log!(logger, warn, "Warning message", key1 = "value1", key2 = 42);
     logger.flush().unwrap();
@@ -36,7 +39,10 @@ fn test_log_macro_with_logger_and_metadata() {
 #[test]
 fn test_log_macro_with_logger_and_meta_macro() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder()
+        .format(logform::passthrough())
+        .add_transport(transport.clone())
+        .build();
 
     log!(
         logger,
@@ -126,7 +132,10 @@ fn test_log_macro_with_trailing_comma() {
 #[test]
 fn test_log_macro_with_complex_metadata_values() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder()
+        .format(logform::passthrough())
+        .add_transport(transport.clone())
+        .build();
 
     let nested_value = serde_json::json!({
         "nested": {
@@ -162,7 +171,7 @@ fn test_log_macro_with_global_logger() {
 fn test_log_macro_with_global_and_metadata() {
     let transport = Arc::new(MockTransport::new());
 
-    winston::init(Logger::builder().build());
+    winston::init(Logger::builder().format(logform::passthrough()).build());
     winston::add_transport(transport.clone());
 
     log!(warn, "Global warning", code = 404, reason = "not found");
