@@ -30,7 +30,7 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport(mut self, transport: Arc<dyn Transport>) -> Self {
         self.options = self.options.add_transport(transport);
         self
     }

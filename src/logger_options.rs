@@ -66,10 +66,10 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `transport` - A single transport to be added to the current list.
-    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport(mut self, transport: Arc<dyn Transport>) -> Self {
         self.transports
             .get_or_insert_with(Vec::new)
-            .push(DebugTransport(Arc::new(transport)));
+            .push(DebugTransport(transport));
         self
     }
 
