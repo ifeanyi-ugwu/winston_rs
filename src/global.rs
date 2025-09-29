@@ -11,16 +11,15 @@ static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
 ///
 /// # Example
 /// ```rust
-/// use winston::{global, Logger};
-/// use winston_transport::console::ConsoleTransport;
+/// use winston::{transports::stdout, Logger};
 /// use std::sync::Arc;
 ///
 /// // Create and configure logger
 /// let mut logger = Logger::new(None);
-/// logger.add_transport(Arc::new(ConsoleTransport::new()));
+/// logger.add_transport(Arc::new(stdout()));
 ///
 /// // Make it global
-/// global::init(logger);
+/// winston::init(logger);
 /// ```
 pub fn init(logger: Logger) {
     GLOBAL_LOGGER

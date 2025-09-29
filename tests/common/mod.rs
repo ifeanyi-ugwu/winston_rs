@@ -1,72 +1,136 @@
-use std::{thread, time::Duration};
-use winston::format::LogInfo;
-use winston_transport::Transport;
-
-pub struct DelayedTransport {
-    delay: Duration,
-}
-
-impl DelayedTransport {
-    pub fn new(delay: Duration) -> Self {
-        DelayedTransport { delay }
-    }
-}
-
-impl Transport for DelayedTransport {
-    fn log(&self, info: LogInfo) {
-        let delay = self.delay;
-        let message = info.message;
-        let level = info.level;
-
-        // Directly delay in the current thread (synchronous for testing)
-        thread::sleep(delay);
-        println!("Delayed log: {} - {}", level, message);
-    }
-}
-
-pub fn generate_random_filename() -> String {
-    let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S").to_string();
-    format!("test_log_{}.log", timestamp)
-}
-
-use std::fs;
-use std::path::Path;
-
-pub fn delete_file_if_exists(file_path: &str) {
-    let path = Path::new(file_path);
-    if path.exists() {
-        fs::remove_file(path).unwrap_or_else(|err| {
-            eprintln!("Failed to delete file {}: {}", file_path, err);
-        });
-    }
-}
-
+use logform::LogInfo;
 use std::sync::{Arc, Mutex};
-use winston_transport::LogQuery;
+use std::thread;
+use std::time::Duration;
+use winston_transport::{LogQuery, Transport};
 
-#[derive(Debug, Default)]
-pub struct MemoryTransport {
-    pub logs: Arc<Mutex<Vec<LogInfo>>>,
+/// Configuration for MockTransport behavior
+#[derive(Clone, Debug)]
+pub struct MockConfig {
+    pub delay: Duration,
+    pub should_fail_log: bool,
+    pub should_fail_flush: bool,
+    pub level: Option<String>,
 }
 
-impl MemoryTransport {
-    pub fn new() -> Self {
+impl Default for MockConfig {
+    fn default() -> Self {
         Self {
-            logs: Arc::new(Mutex::new(Vec::new())),
+            delay: Duration::from_millis(0),
+            should_fail_log: false,
+            should_fail_flush: false,
+            level: None,
         }
     }
 }
 
-impl Transport for MemoryTransport {
+/// A comprehensive mock transport for testing
+#[derive(Clone, Debug)]
+pub struct MockTransport {
+    pub logs: Arc<Mutex<Vec<LogInfo>>>,
+    config: MockConfig,
+}
+
+impl MockTransport {
+    pub fn new() -> Self {
+        Self {
+            logs: Arc::new(Mutex::new(Vec::new())),
+            config: MockConfig::default(),
+        }
+    }
+
+    pub fn with_config(config: MockConfig) -> Self {
+        Self {
+            logs: Arc::new(Mutex::new(Vec::new())),
+            config,
+        }
+    }
+
+    pub fn with_delay(delay: Duration) -> Self {
+        Self::with_config(MockConfig {
+            delay,
+            ..Default::default()
+        })
+    }
+
+    pub fn get_logs(&self) -> Vec<LogInfo> {
+        self.logs.lock().unwrap().clone()
+    }
+
+    pub fn clear_logs(&self) {
+        self.logs.lock().unwrap().clear();
+    }
+
+    pub fn log_count(&self) -> usize {
+        self.logs.lock().unwrap().len()
+    }
+
+    pub fn has_message(&self, message: &str) -> bool {
+        self.logs
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|log| log.message.contains(message))
+    }
+
+    pub fn has_level(&self, level: &str) -> bool {
+        self.logs
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|log| log.level == level)
+    }
+}
+
+impl Transport for MockTransport {
     fn log(&self, info: LogInfo) {
+        if self.config.should_fail_log {
+            return;
+        }
+
+        if self.config.delay > Duration::from_millis(0) {
+            thread::sleep(self.config.delay);
+        }
+
         self.logs.lock().unwrap().push(info);
     }
 
     fn flush(&self) -> Result<(), String> {
-        Ok(())
+        if self.config.should_fail_flush {
+            Err("Mock flush failure".to_string())
+        } else {
+            Ok(())
+        }
     }
 
-    fn query(&self, _options: &LogQuery) -> Result<Vec<LogInfo>, String> {
-        Ok(self.logs.lock().unwrap().clone())
+    fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
+        let logs = self.logs.lock().unwrap();
+        Ok(logs
+            .iter()
+            .filter(|log| options.matches(log))
+            .cloned()
+            .collect())
     }
+
+    fn get_level(&self) -> Option<&String> {
+        self.config.level.as_ref()
+    }
+}
+
+/// Helper to generate unique test file paths
+pub fn temp_log_file() -> String {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    let count = COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!("test_log_{}_{}.log", std::process::id(), count)
+}
+
+/// Helper to cleanup test files
+pub fn cleanup_file(path: &str) {
+    let _ = std::fs::remove_file(path);
+}
+
+/// Helper to wait for async log processing
+pub fn wait_for_logs(logger: &winston::Logger) {
+    logger.flush().expect("Failed to flush logger");
 }
