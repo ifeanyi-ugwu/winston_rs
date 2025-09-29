@@ -14,31 +14,36 @@ Winston provides structured logging with composable transports, formats, and lev
 ### Simple Console Logging
 
 ```rust
-use winston::{log, configure, transports::stdout, LoggerOptions};
+use std::sync::Arc;
+use winston::{log, Logger, transports::stdout, LoggerOptions};
 
 fn main() {
-    configure(Some(
-        LoggerOptions::new()
-            .level("info")
-            .add_transport(stdout())
-    ));
+    let logger = Logger::builder()
+        .level("info")
+        .add_transport(Arc::new(stdout()))
+        .build();
+
+    winston::init(logger);
 
     log!(info, "Application started");
     log!(warn, "Low disk space", usage = 92);
+
+    winston::close();
 }
 ```
 
 ### Multi-Transport Logger
 
 ```rust
-use winston::{Logger, format::{timestamp, json, chain}, transports::{stdout, File}};
+use std::sync::Arc;
+use winston::{Logger, log, format::{timestamp, json, chain}, transports::{stdout, File}};
 
 fn main() {
     let logger = Logger::builder()
         .level("debug")
-        .format(timestamp().chain(json()))
-        .add_transport(stdout())
-        .add_transport(File::builder().filename("app.log").build())
+        .format(chain!(timestamp(), json()))
+        .add_transport(Arc::new(stdout()))
+        .add_transport(Arc::new(File::builder().filename("app.log").build()))
         .build();
 
     log!(logger, info, "Logging to console and file");
@@ -81,12 +86,14 @@ pub trait Transport: Send + Sync {
 **Multiple transports example:**
 
 ```rust
+use std::sync::Arc;
+
 let logger = Logger::builder()
-    .add_transport(stdout().with_level("info"))           // Console: info+
-    .add_transport(File::builder()                        // File: debug+
+    .add_transport(Arc::new(stdout().with_level("info")))    // Console: info+
+    .add_transport(Arc::new(File::builder()                  // File: debug+
         .filename("app.log")
         .level("debug")
-        .build())
+        .build()))
     .build();
 ```
 
@@ -142,22 +149,24 @@ let logger = Logger::builder()
 **Per-transport formatting:**
 
 ```rust
+use std::sync::Arc;
+
 let logger = Logger::builder()
-    .add_transport(
+    .add_transport(Arc::new(
         stdout().with_format(
             timestamp()
                 .with_format("%H:%M:%S")
                 .chain(colorize())
         )
-    )  // Colorized console with timestamps
-    .add_transport(File::builder()
+    ))  // Colorized console with timestamps
+    .add_transport(Arc::new(File::builder()
         .filename("app.log")
         .format(
             timestamp()
                 .with_format("%Y-%m-%d %H:%M:%S")
                 .chain(json())
         )  // Structured file logs with full timestamps
-        .build())
+        .build()))
     .build();
 ```
 
@@ -243,10 +252,12 @@ let results = logger.query(query)?;
 Change logger settings dynamically:
 
 ```rust
+use std::sync::Arc;
+
 logger.configure(
     LoggerOptions::new()
         .level("debug")
-        .add_transport(File::builder().filename("debug.log").build())
+        .add_transport(Arc::new(File::builder().filename("debug.log").build()))
 );
 ```
 
@@ -281,11 +292,19 @@ impl Transport for DatabaseTransport {
 Convenient for application-wide logging:
 
 ```rust
-use winston::{configure, log, flush};
+use std::sync::Arc;
+use winston::{Logger, log, transports::stdout};
 
-configure(Some(LoggerOptions::new().add_transport(stdout())));
-log!(info, "Using global logger");
-flush(); // Important: flush before app exit
+fn main() {
+    let logger = Logger::builder()
+        .add_transport(Arc::new(stdout()))
+        .build();
+
+    winston::init(logger);
+    log!(info, "Using global logger");
+    winston::flush().unwrap(); // Important: flush before app exit
+    winston::close();
+}
 ```
 
 ### Logger Instances
@@ -293,8 +312,10 @@ flush(); // Important: flush before app exit
 Better for libraries or multi-tenant applications:
 
 ```rust
+use std::sync::Arc;
+
 let logger = Logger::builder()
-    .add_transport(stdout())
+    .add_transport(Arc::new(stdout()))
     .build();
 
 log!(logger, info, "Using specific logger instance");
@@ -312,7 +333,7 @@ log!(logger, info, "Using specific logger instance");
 ## Integration with the `log` Crate
 
 Winston can also act as a backend for the widely used [`log`](https://crates.io/crates/log) facade.  
-This means that existing libraries and crates which emit logs via `log` will automatically route their output through Winston’s transports and formatting system.
+This means that existing libraries and crates which emit logs via `log` will automatically route their output through Winston's transports and formatting system.
 
 Enable the feature in `Cargo.toml`:
 
@@ -324,23 +345,29 @@ winston = { version = "0.5", features = ["log-backend"] }
 Then initialize Winston as the global logger:
 
 ```rust
-use winston::Logger;
+use std::sync::Arc;
+use winston::{Logger, transports::stdout};
 
 fn main() {
-    Logger::default().init_as_global().unwrap();
+    // Initialize winston
+    let logger = Logger::builder()
+        .add_transport(Arc::new(stdout()))
+        .build();
+
+    winston::init(logger);
+    winston::register_with_log().unwrap();
 
     log::info!("Hello from the log crate!");
     log::warn!("This also goes through Winston transports");
-}
 
+    winston::close();
+}
 ```
 
 Notes:
 
-- Key–value metadata support from log is available with the log-backend-kv feature.
-
-- Winston’s transports, levels, formats, and backpressure strategies apply seamlessly.
-
+- Key–value metadata support from log is available with the `log-backend-kv` feature.
+- Winston's transports, levels, formats, and backpressure strategies apply seamlessly.
 - Useful when integrating Winston into projects that already rely on the log ecosystem.
 
 ## Installation
