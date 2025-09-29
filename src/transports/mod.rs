@@ -4,10 +4,10 @@ pub use winston_transport::transport_adapters::WriterTransport;
 pub use winston_transport::*;
 
 // Convenience functions
-pub fn stdout() -> WriterTransport<io::Stdout> {
+pub fn stdout() -> WriterTransport<io::Stdout, LogInfo> {
     WriterTransport::new(io::stdout())
 }
 
-pub fn stderr() -> WriterTransport<io::Stderr> {
+pub fn stderr() -> WriterTransport<io::Stderr, LogInfo> {
     WriterTransport::new(io::stderr())
 }

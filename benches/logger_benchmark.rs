@@ -30,7 +30,7 @@ fn benchmark_logging(c: &mut Criterion) {
         .build();
 
     let logger = Logger::builder()
-        .add_transport(Arc::new(file_transport))
+        //.add_transport(Arc::new(file_transport)) //TODO: uncomment when the file transport is updated
         .build();
 
     c.bench_function("log_message_to_file", |b| {

@@ -82,7 +82,7 @@ impl MockTransport {
     }
 }
 
-impl Transport for MockTransport {
+impl Transport<LogInfo> for MockTransport {
     fn log(&self, info: LogInfo) {
         if self.config.should_fail_log {
             return;
@@ -110,10 +110,6 @@ impl Transport for MockTransport {
             .filter(|log| options.matches(log))
             .cloned()
             .collect())
-    }
-
-    fn get_level(&self) -> Option<&String> {
-        self.config.level.as_ref()
     }
 }
 

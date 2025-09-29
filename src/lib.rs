@@ -4,6 +4,7 @@ mod logger;
 mod logger_builder;
 mod logger_levels;
 mod logger_options;
+mod logger_transport;
 pub mod transports;
 
 #[cfg(feature = "log-backend")]

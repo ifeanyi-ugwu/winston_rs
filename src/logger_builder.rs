@@ -30,12 +30,15 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn add_transport(mut self, transport: Arc<dyn Transport>) -> Self {
+    pub fn add_transport(mut self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
         self.options = self.options.add_transport(transport);
         self
     }
 
-    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
+    pub fn transports(
+        mut self,
+        transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
+    ) -> Self {
         self.options = self.options.transports(transports);
         self
     }

@@ -1,6 +1,7 @@
 use crate::{
     logger_builder::LoggerBuilder,
     logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
+    logger_transport::LoggerTransport,
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::LogInfo;
@@ -80,7 +81,7 @@ impl Logger {
             .as_deref()
             .and_then(|lvl| levels.get_severity(lvl));
 
-        if let Some(transports) = options.get_transports() {
+        if let Some(transports) = &options.transports {
             for transport in transports {
                 if let Some(transport_level) = transport.get_level() {
                     if let Some(transport_severity) = levels.get_severity(transport_level) {
@@ -113,7 +114,8 @@ impl Logger {
                     let mut state = shared_state.write();
                     if state
                         .options
-                        .get_transports()
+                        .transports
+                        .as_ref()
                         .map_or(true, |t| t.is_empty())
                     {
                         state.buffer.push_back(entry.clone());
@@ -157,7 +159,7 @@ impl Logger {
                     let mut state = shared_state.write();
                     Self::process_buffered_entries(&mut state);
 
-                    if let Some(transports) = state.options.get_transports() {
+                    if let Some(transports) = &state.options.transports {
                         for transport in transports {
                             let _ = transport.flush();
                         }
@@ -190,7 +192,7 @@ impl Logger {
         }
 
         let options = &state.options;
-        if let Some(transports) = options.get_transports() {
+        if let Some(transports) = &options.transports {
             for transport in transports {
                 // Check if this transport cares about the level
                 let effective_level = transport.get_level().or_else(|| options.level.as_ref());
@@ -244,7 +246,7 @@ impl Logger {
         );
 
         // Then, query each transport
-        if let Some(transports) = state.options.get_transports() {
+        if let Some(transports) = &state.options.transports {
             for transport in transports {
                 match transport.query(options) {
                     Ok(mut logs) => results.append(&mut logs),
@@ -413,26 +415,26 @@ impl Logger {
     }
 
     /// Adds a transport wrapped in an Arc directly to the logger
-    pub fn add_transport(&self, transport: Arc<dyn Transport>) -> bool {
+    pub fn add_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
         let mut state = self.shared_state.write();
         if let Some(transports) = &mut state.options.transports {
-            transports.push(DebugTransport(transport));
+            transports.push(LoggerTransport::new(transport));
             true
         } else {
-            state.options.transports = Some(vec![DebugTransport(transport)]);
+            state.options.transports = Some(vec![LoggerTransport::new(transport)]);
             true
         }
     }
 
     /// Removes a transport wrapped in an Arc from the logger
-    pub fn remove_transport(&self, transport: Arc<dyn Transport>) -> bool {
+    pub fn remove_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
         let mut state = self.shared_state.write();
 
         if let Some(transports) = &mut state.options.transports {
             // Find the index of the transport to remove based on pointer equality
             if let Some(index) = transports
                 .iter()
-                .position(|t| Arc::ptr_eq(&transport, &t.0))
+                .position(|t| Arc::ptr_eq(&transport, &t.get_transport()))
             {
                 transports.remove(index);
                 true
@@ -600,7 +602,7 @@ mod tests {
         }
     }
 
-    impl Transport for TestTransport {
+    impl Transport<LogInfo> for TestTransport {
         fn log(&self, info: LogInfo) {
             self.logs.lock().unwrap().push(info);
         }
@@ -724,13 +726,9 @@ mod tests {
             level: String,
         }
 
-        impl Transport for LeveledTransport {
+        impl Transport<LogInfo> for LeveledTransport {
             fn log(&self, info: LogInfo) {
                 self.logs.lock().unwrap().push(info);
-            }
-
-            fn get_level(&self) -> Option<&String> {
-                Some(&self.level)
             }
         }
 

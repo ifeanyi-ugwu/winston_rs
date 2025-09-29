@@ -1,4 +1,5 @@
 use crate::Logger;
+use logform::LogInfo;
 use std::sync::{Arc, OnceLock};
 use winston_transport::Transport;
 
@@ -79,11 +80,11 @@ pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<logform::LogIn
     global_logger().query(options)
 }
 
-pub fn add_transport(transport: Arc<dyn Transport>) -> bool {
+pub fn add_transport(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
     global_logger().add_transport(transport)
 }
 
-pub fn remove_transport(transport: Arc<dyn Transport>) -> bool {
+pub fn remove_transport(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
     global_logger().remove_transport(transport)
 }
 
