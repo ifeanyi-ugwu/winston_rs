@@ -1,7 +1,5 @@
-mod file;
-
-pub use file::FileTransport as File;
 use std::io;
+pub use winston_file::FileTransport as File;
 pub use winston_transport::transport_adapters::WriterTransport;
 pub use winston_transport::*;
 

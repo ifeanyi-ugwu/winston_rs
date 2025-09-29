@@ -20,6 +20,7 @@ logform = "0.5.1"
 parking_lot = "0.12.3"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
+winston_file = "0.1.0"
 winston_proxy_transport = "0.3.0"
 winston_transport = "0.5.0"
 
