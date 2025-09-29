@@ -741,28 +741,10 @@ mod tests {
             }
         }
 
-        //TODO: add this as a format in logform
-        #[derive(Debug, Clone, Default)]
-        pub struct PassthroughFormat;
-
-        impl PassthroughFormat {
-            pub fn new() -> Self {
-                Self
-            }
-        }
-
-        impl logform::Format for PassthroughFormat {
-            type Input = LogInfo;
-
-            fn transform(&self, info: Self::Input) -> Option<Self::Input> {
-                Some(info)
-            }
-        }
-
         let logger = Logger::new(Some(
             LoggerOptions::new()
                 .level("trace")
-                .format(PassthroughFormat::new()),
+                .format(logform::passthrough()),
         ));
         let transport = Arc::new(LeveledTransport {
             logs: Arc::new(Mutex::new(Vec::new())),
