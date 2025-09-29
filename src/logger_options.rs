@@ -1,22 +1,7 @@
 use crate::{logger_levels::LoggerLevels, logger_transport::LoggerTransport};
 use logform::{json, Format, LogInfo};
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
-
-// Wrapper type for Transport to implement Debug
-pub struct DebugTransport(pub Arc<dyn Transport<LogInfo>>);
-
-impl fmt::Debug for DebugTransport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Transport")
-    }
-}
-
-impl Clone for DebugTransport {
-    fn clone(&self) -> Self {
-        DebugTransport(Arc::clone(&self.0))
-    }
-}
 
 #[derive(Clone)]
 pub struct LoggerOptions {

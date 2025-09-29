@@ -1,6 +1,6 @@
 use crate::{
     logger_builder::LoggerBuilder,
-    logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
+    logger_options::{BackpressureStrategy, LoggerOptions},
     logger_transport::LoggerTransport,
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
