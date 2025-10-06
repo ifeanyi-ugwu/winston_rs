@@ -47,9 +47,8 @@ fn test_transport_flush_failure() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_logging_without_transports_then_adding() {
-    let logger = Logger::builder().build();
+    let logger = Logger::builder().format(logform::passthrough()).build();
 
     // Log without transports - should buffer
     logger.log(LogInfo::new("info", "Buffered message 1"));
@@ -146,7 +145,6 @@ fn test_query_with_no_results() {
 }
 
 #[test]
-#[ignore = "test hangs"]
 fn test_close_then_log() {
     let transport = Arc::new(MockTransport::new());
     let logger = Logger::builder().add_transport(transport.clone()).build();

@@ -152,7 +152,6 @@ fn test_log_macro_with_complex_metadata_values() {
 
 // Tests for global logger with macros
 #[test]
-#[ignore = "test fails"]
 fn test_log_macro_with_global_logger() {
     let transport = Arc::new(MockTransport::new());
 
@@ -186,11 +185,10 @@ fn test_log_macro_with_global_and_metadata() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_log_macro_with_global_and_meta_macro() {
     let transport = Arc::new(MockTransport::new());
 
-    winston::init(Logger::builder().build());
+    winston::init(Logger::builder().format(logform::passthrough()).build());
     winston::add_transport(transport.clone());
 
     log!(

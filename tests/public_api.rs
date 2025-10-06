@@ -145,10 +145,12 @@ fn test_configure_updates_logger() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_query_with_level_filter() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder()
+        .format(logform::timestamp())
+        .add_transport(transport.clone())
+        .build();
 
     log!(logger, info, "Info message");
     log!(logger, error, "Error message");
@@ -177,7 +179,6 @@ fn test_flush_ensures_delivery() {
 }
 
 #[test]
-#[ignore = "test hangs"]
 fn test_close_flushes_pending_logs() {
     let transport = Arc::new(MockTransport::new());
     let logger = Logger::builder().add_transport(transport.clone()).build();

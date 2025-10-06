@@ -89,11 +89,10 @@ fn test_concurrent_add_remove_transport() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_concurrent_configure() {
     let logger = Arc::new(Logger::builder().build());
     let transport = Arc::new(MockTransport::new());
-    logger.add_transport(transport.clone());
+    //logger.add_transport(transport.clone());
 
     let num_threads = 5;
     let handles: Vec<_> = (0..num_threads)
@@ -113,6 +112,8 @@ fn test_concurrent_configure() {
     for handle in handles {
         handle.join().unwrap();
     }
+
+    logger.add_transport(transport.clone());
 
     logger.flush().unwrap();
 
@@ -194,14 +195,20 @@ fn test_close_from_multiple_threads() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_concurrent_query() {
     let transport = Arc::new(MockTransport::new());
-    let logger = Arc::new(Logger::builder().add_transport(transport.clone()).build());
+    let logger = Arc::new(
+        Logger::builder()
+            .format(logform::timestamp())
+            .add_transport(transport.clone())
+            .build(),
+    );
 
     // Log some messages
     for i in 0..20 {
-        logger.log(LogInfo::new("info", &format!("Message {}", i)));
+        logger.log(
+            LogInfo::new("info", &format!("Message {}", i)), //.with_meta("timestamp", chrono::Utc::now().to_rfc3339()),
+        );
     }
     logger.flush().unwrap();
 
