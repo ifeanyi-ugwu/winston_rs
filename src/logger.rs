@@ -187,9 +187,16 @@ impl Logger {
             return;
         }
 
-        if !Self::is_level_enabled(&entry.level, &state) {
+        // Level filtering is intentionally NOT performed here in process_entry().
+        // While pre-filtering would save some CPU cycles, it would slow down the log()
+        // call and increase backpressure on the channel, causing the buffer to fill faster.
+        // By skipping the check here and deferring it to individual transports, we maximize
+        // throughput at the cost of slightly more memory usage for entries that will
+        // ultimately be discarded. This design prioritizes logging performance over memory
+        // efficiency, which is consistent with the async, non-blocking architecture.
+        /*if !Self::is_level_enabled(&entry.level, &state) {
             return;
-        }
+        }*/
 
         let options = &state.options;
         if let Some(transports) = &options.transports {
