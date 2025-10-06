@@ -155,13 +155,22 @@ impl Logger {
                     Self::process_buffered_entries(&mut state);
                     break;
                 }
-                LogMessage::Flush => {
+                /*LogMessage::Flush => {
                     let mut state = shared_state.write();
-                    Self::process_buffered_entries(&mut state);
+                    // Only process buffered entries if we have transports
+                    if state
+                        .options
+                        .transports
+                        .as_ref()
+                        .map_or(false, |t| !t.is_empty())
+                    {
+                        Self::process_buffered_entries(&mut state);
 
-                    if let Some(transports) = &state.options.transports {
-                        for transport in transports {
-                            let _ = transport.flush();
+                        // Flush each transport
+                        if let Some(transports) = &state.options.transports {
+                            for transport in transports {
+                                let _ = transport.flush();
+                            }
                         }
                     }
 
@@ -170,6 +179,37 @@ impl Logger {
                     let mut completed = lock.lock().unwrap();
                     *completed = true;
                     cvar.notify_one();
+                }*/
+                LogMessage::Flush => {
+                    eprintln!("[DEBUG worker] Received Flush message");
+                    let mut state = shared_state.write();
+
+                    if state
+                        .options
+                        .transports
+                        .as_ref()
+                        .map_or(false, |t| !t.is_empty())
+                    {
+                        eprintln!(
+                            "[DEBUG worker] Processing buffered entries and flushing transports"
+                        );
+                        Self::process_buffered_entries(&mut state);
+
+                        if let Some(transports) = &state.options.transports {
+                            for transport in transports {
+                                let _ = transport.flush();
+                            }
+                        }
+                    } else {
+                        eprintln!("[DEBUG worker] No transports, skipping buffer processing");
+                    }
+
+                    eprintln!("[DEBUG worker] Signaling flush completion");
+                    let (lock, cvar) = &*flush_complete;
+                    let mut completed = lock.lock().unwrap();
+                    *completed = true;
+                    cvar.notify_one();
+                    eprintln!("[DEBUG worker] Flush complete signal sent");
                 }
             }
         }
@@ -343,10 +383,11 @@ impl Logger {
         }
     }
 
-    pub fn close(&self) {
-        if let Err(e) = self.flush() {
+    pub fn _close(&self) {
+        // logger will flush as part of shutdown
+        /*if let Err(e) = self.flush() {
             eprintln!("Error flushing logs: {}", e);
-        }
+        }*/
 
         let _ = self.sender.send(LogMessage::Shutdown);
 
@@ -361,10 +402,39 @@ impl Logger {
         }
     }
 
+    pub fn close(&self) {
+        eprintln!("[DEBUG close] Starting close()");
+
+        eprintln!("[DEBUG close] Calling flush()...");
+        if let Err(e) = self.flush() {
+            eprintln!("Error flushing logs: {}", e);
+        }
+        eprintln!("[DEBUG close] flush() returned");
+
+        eprintln!("[DEBUG close] Sending Shutdown message...");
+        let _ = self.sender.send(LogMessage::Shutdown);
+        eprintln!("[DEBUG close] Shutdown message sent");
+
+        eprintln!("[DEBUG close] Acquiring worker thread lock...");
+        if let Ok(mut thread_handle) = self.worker_thread.lock() {
+            eprintln!("[DEBUG close] Lock acquired");
+            if let Some(handle) = thread_handle.take() {
+                eprintln!("[DEBUG close] Joining worker thread...");
+                if let Err(e) = handle.join() {
+                    eprintln!("Error joining worker thread: {:?}", e);
+                }
+                eprintln!("[DEBUG close] Worker thread joined");
+            }
+        } else {
+            eprintln!("Error acquiring lock on worker thread handle during close.");
+        }
+        eprintln!("[DEBUG close] close() complete");
+    }
+
     // though the flush method on transports is synchronous and can be called directly when this is called,
     // processing it in the background worker ensures that messages sitting in the pipeline is processed
     // before each transport's flush method is called
-    pub fn flush(&self) -> Result<(), String> {
+    pub fn _flush(&self) -> Result<(), String> {
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
         *completed = false;
@@ -376,6 +446,34 @@ impl Logger {
         while !*completed {
             completed = cvar.wait(completed).unwrap();
         }
+
+        Ok(())
+    }
+
+    pub fn flush(&self) -> Result<(), String> {
+        eprintln!("[DEBUG flush] Starting flush()");
+        // Check if worker thread is still alive
+        if let Ok(thread_handle) = self.worker_thread.lock() {
+            if thread_handle.is_none() {
+                // Already closed, nothing to flush
+                return Ok(());
+            }
+        }
+
+        let (lock, cvar) = &*self.flush_complete;
+        let mut completed = lock.lock().unwrap();
+        *completed = false;
+        eprintln!("[DEBUG flush] Condvar reset, sending Flush message");
+
+        self.sender
+            .send(LogMessage::Flush)
+            .map_err(|e| e.to_string())?;
+        eprintln!("[DEBUG flush] Flush message sent, waiting for signal...");
+
+        while !*completed {
+            completed = cvar.wait(completed).unwrap();
+        }
+        eprintln!("[DEBUG flush] Signal received, returning");
 
         Ok(())
     }
@@ -841,7 +939,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "test hangs"]
     fn test_close_flushes_logs() {
         let logger = Logger::new(None);
         let transport = Arc::new(TestTransport::new());
@@ -854,24 +951,25 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "test fails"]
     fn test_buffering_without_transports() {
         let logger = Logger::new(None);
 
         logger.log(LogInfo::new("info", "Buffered message"));
+
+        logger.flush().unwrap();
 
         let state = logger.shared_state.read();
         assert_eq!(state.buffer.len(), 1);
     }
 
     #[test]
-    #[ignore = "test fails"]
     fn test_buffer_processed_when_transport_added() {
-        let logger = Logger::new(None);
+        let logger = Logger::builder().format(logform::passthrough()).build();
 
         // Log without transport - should buffer
         logger.log(LogInfo::new("info", "Buffered"));
 
+        logger.flush().unwrap();
         let state = logger.shared_state.read();
         assert_eq!(state.buffer.len(), 1);
         drop(state);
