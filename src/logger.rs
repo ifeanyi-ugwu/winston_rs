@@ -212,6 +212,9 @@ impl Logger {
                         if entry_sev > required_sev {
                             continue; // skip: not enabled
                         }
+                    } else {
+                        // If we can't get severity for either level, skip this transport
+                        continue;
                     }
                 }
 
