@@ -1,6 +1,7 @@
 mod common;
 
 use common::MockTransport;
+use serial_test::serial;
 use std::sync::Arc;
 use winston::{log, meta, Logger};
 
@@ -152,10 +153,13 @@ fn test_log_macro_with_complex_metadata_values() {
 
 // Tests for global logger with macros
 #[test]
+#[serial]
 fn test_log_macro_with_global_logger() {
     let transport = Arc::new(MockTransport::new());
 
-    winston::init(Logger::builder().build());
+    if !winston::is_initialized() {
+        winston::init(Logger::builder().build());
+    }
     winston::add_transport(transport.clone());
 
     log!(info, "Global message");
@@ -163,14 +167,22 @@ fn test_log_macro_with_global_logger() {
 
     assert_eq!(transport.log_count(), 1);
 
-    winston::close();
+    //winston::close();
 }
 
 #[test]
+#[serial]
 fn test_log_macro_with_global_and_metadata() {
     let transport = Arc::new(MockTransport::new());
 
-    winston::init(Logger::builder().format(logform::passthrough()).build());
+    if !winston::is_initialized() {
+        winston::init(Logger::builder().format(logform::passthrough()).build());
+    } else {
+        // Reconfigure to ensure passthrough format is present
+        winston::configure(Some(
+            winston::LoggerOptions::new().format(logform::passthrough()),
+        ));
+    }
     winston::add_transport(transport.clone());
 
     log!(warn, "Global warning", code = 404, reason = "not found");
@@ -181,14 +193,22 @@ fn test_log_macro_with_global_and_metadata() {
     assert!(logs[0].meta.contains_key("code"));
     assert!(logs[0].meta.contains_key("reason"));
 
-    winston::close();
+    //winston::close();
 }
 
 #[test]
+#[serial]
 fn test_log_macro_with_global_and_meta_macro() {
     let transport = Arc::new(MockTransport::new());
 
-    winston::init(Logger::builder().format(logform::passthrough()).build());
+    if !winston::is_initialized() {
+        winston::init(Logger::builder().format(logform::passthrough()).build());
+    } else {
+        // Reconfigure to ensure passthrough format is present
+        winston::configure(Some(
+            winston::LoggerOptions::new().format(logform::passthrough()),
+        ));
+    }
     winston::add_transport(transport.clone());
 
     log!(
@@ -202,5 +222,5 @@ fn test_log_macro_with_global_and_meta_macro() {
     assert_eq!(logs.len(), 1);
     assert!(logs[0].meta.contains_key("severity"));
 
-    winston::close();
+    ////winston::close();
 }

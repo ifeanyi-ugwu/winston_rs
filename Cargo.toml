@@ -27,6 +27,7 @@ winston_transport = { version = "0.6.0" }
 
 [dev-dependencies]
 criterion = "0.5.1"
+serial_test = "3.2.0"
 
 
 [[bench]]
