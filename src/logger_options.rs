@@ -1,29 +1,14 @@
-use crate::logger_levels::LoggerLevels;
+use crate::{logger_levels::LoggerLevels, logger_transport::LoggerTransport};
 use logform::{json, Format, LogInfo};
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
-
-// Wrapper type for Transport to implement Debug
-pub struct DebugTransport(pub Arc<dyn Transport>);
-
-impl fmt::Debug for DebugTransport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Transport")
-    }
-}
-
-impl Clone for DebugTransport {
-    fn clone(&self) -> Self {
-        DebugTransport(Arc::clone(&self.0))
-    }
-}
 
 #[derive(Clone)]
 pub struct LoggerOptions {
     pub levels: Option<LoggerLevels>,
     pub format: Option<Arc<dyn Format<Input = LogInfo> + Send + Sync>>,
     pub level: Option<String>,
-    pub transports: Option<Vec<DebugTransport>>,
+    pub transports: Option<Vec<LoggerTransport<LogInfo>>>,
     pub channel_capacity: Option<usize>,
     pub backpressure_strategy: Option<BackpressureStrategy>,
 }
@@ -66,15 +51,23 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `transport` - A single transport to be added to the current list.
-    pub fn add_transport<T: Transport + 'static>(mut self, transport: T) -> Self {
+    pub fn add_transport(mut self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
         self.transports
             .get_or_insert_with(Vec::new)
-            .push(DebugTransport(Arc::new(transport)));
+            .push(LoggerTransport::new(transport));
         self
     }
 
-    pub fn transports(mut self, transports: Vec<Arc<dyn Transport>>) -> Self {
-        self.transports = Some(transports.into_iter().map(|t| DebugTransport(t)).collect());
+    pub fn transports(
+        mut self,
+        transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
+    ) -> Self {
+        self.transports = Some(
+            transports
+                .into_iter()
+                .map(|t| LoggerTransport::new(t))
+                .collect(),
+        );
         self
     }
 
@@ -106,13 +99,6 @@ impl LoggerOptions {
     pub fn backpressure_strategy(mut self, strategy: BackpressureStrategy) -> Self {
         self.backpressure_strategy = Some(strategy);
         self
-    }
-
-    // Helper method to get the actual Transports
-    pub fn get_transports(&self) -> Option<Vec<Arc<dyn Transport>>> {
-        self.transports
-            .as_ref()
-            .map(|ts| ts.iter().map(|dt| Arc::clone(&dt.0)).collect())
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::{
     logger_builder::LoggerBuilder,
-    logger_options::{BackpressureStrategy, DebugTransport, LoggerOptions},
+    logger_options::{BackpressureStrategy, LoggerOptions},
+    logger_transport::LoggerTransport,
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::LogInfo;
@@ -21,9 +22,11 @@ pub enum LogMessage {
 }
 
 #[derive(Debug)]
-struct SharedState {
-    options: LoggerOptions,
+pub(crate) struct SharedState {
+    pub(crate) options: LoggerOptions,
     buffer: VecDeque<LogInfo>,
+    // Cache the minimum severity needed for any transport to accept a log
+    min_required_severity: Option<u8>,
 }
 
 #[derive(Debug)]
@@ -31,7 +34,7 @@ pub struct Logger {
     worker_thread: Mutex<Option<thread::JoinHandle<()>>>,
     sender: Sender<LogMessage>,
     receiver: Arc<Receiver<LogMessage>>,
-    shared_state: Arc<RwLock<SharedState>>,
+    pub(crate) shared_state: Arc<RwLock<SharedState>>,
     flush_complete: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -43,9 +46,12 @@ impl Logger {
         let flush_complete = Arc::new((Mutex::new(false), Condvar::new()));
 
         let shared_receiver = Arc::new(receiver);
+        // Pre-compute effective levels
+        let min_required_severity = Self::compute_min_severity(&options);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
             buffer: VecDeque::new(),
+            min_required_severity,
         }));
 
         let worker_receiver = Arc::clone(&shared_receiver);
@@ -68,6 +74,35 @@ impl Logger {
         }
     }
 
+    fn compute_min_severity(options: &LoggerOptions) -> Option<u8> {
+        let levels = options.levels.as_ref()?;
+        let mut min_severity = options
+            .level
+            .as_deref()
+            .and_then(|lvl| levels.get_severity(lvl));
+
+        if let Some(transports) = &options.transports {
+            for transport in transports {
+                if let Some(transport_level) = transport.get_level() {
+                    if let Some(transport_severity) = levels.get_severity(transport_level) {
+                        min_severity = Some(
+                            min_severity
+                                .map_or(transport_severity, |cur| cur.max(transport_severity)),
+                        );
+                    }
+                }
+            }
+        }
+
+        min_severity
+    }
+
+    /// Update the cached levels when configuration changes
+    fn refresh_effective_levels(state: &mut SharedState) {
+        let min_required_severity = Self::compute_min_severity(&state.options);
+        state.min_required_severity = min_required_severity;
+    }
+
     fn worker_loop(
         receiver: Arc<Receiver<LogMessage>>,
         shared_state: Arc<RwLock<SharedState>>,
@@ -79,14 +114,15 @@ impl Logger {
                     let mut state = shared_state.write();
                     if state
                         .options
-                        .get_transports()
+                        .transports
+                        .as_ref()
                         .map_or(true, |t| t.is_empty())
                     {
                         state.buffer.push_back(entry.clone());
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
                         Self::process_buffered_entries(&mut state);
-                        Self::process_entry(&entry, &state.options)
+                        Self::process_entry(&entry, &state)
                         //Self::process_entry(&entry, &state.options);
                         //Self::process_buffered_entries(&mut state);
                     }
@@ -109,6 +145,7 @@ impl Logger {
                     }
                     // Add any other options that need to be configurable
 
+                    Self::refresh_effective_levels(&mut state);
                     // Process buffered entries with new configuration
                     Self::process_buffered_entries(&mut state);
                 }
@@ -120,15 +157,22 @@ impl Logger {
                 }
                 LogMessage::Flush => {
                     let mut state = shared_state.write();
-                    Self::process_buffered_entries(&mut state);
 
-                    if let Some(transports) = state.options.get_transports() {
-                        for transport in transports {
-                            let _ = transport.flush();
+                    if state
+                        .options
+                        .transports
+                        .as_ref()
+                        .map_or(false, |t| !t.is_empty())
+                    {
+                        Self::process_buffered_entries(&mut state);
+
+                        if let Some(transports) = &state.options.transports {
+                            for transport in transports {
+                                let _ = transport.flush();
+                            }
                         }
                     }
 
-                    // Signal completion
                     let (lock, cvar) = &*flush_complete;
                     let mut completed = lock.lock().unwrap();
                     *completed = true;
@@ -140,22 +184,47 @@ impl Logger {
 
     fn process_buffered_entries(state: &mut SharedState) {
         while let Some(entry) = state.buffer.pop_front() {
-            Self::process_entry(&entry, &state.options);
+            Self::process_entry(&entry, &state);
         }
     }
 
-    fn process_entry(entry: &LogInfo, options: &LoggerOptions) {
+    fn process_entry(entry: &LogInfo, state: &SharedState) {
         //TODO: remove this check, it isn't consistent with winstonjs, but may ensure consistent message structure and prevent unnecessary writes
         if entry.message.is_empty() && entry.meta.is_empty() {
             return;
         }
 
-        if !Self::is_level_enabled(&entry.level, options) {
+        // Level filtering is intentionally NOT performed here in process_entry().
+        // While pre-filtering would save some CPU cycles, it would slow down the log()
+        // call and increase backpressure on the channel, causing the buffer to fill faster.
+        // By skipping the check here and deferring it to individual transports, we maximize
+        // throughput at the cost of slightly more memory usage for entries that will
+        // ultimately be discarded. This design prioritizes logging performance over memory
+        // efficiency, which is consistent with the async, non-blocking architecture.
+        /*if !Self::is_level_enabled(&entry.level, &state) {
             return;
-        }
+        }*/
 
-        if let Some(transports) = options.get_transports() {
+        let options = &state.options;
+        if let Some(transports) = &options.transports {
             for transport in transports {
+                // Check if this transport cares about the level
+                let effective_level = transport.get_level().or_else(|| options.level.as_ref());
+
+                if let (Some(levels), Some(effective_level)) = (&options.levels, effective_level) {
+                    if let (Some(entry_sev), Some(required_sev)) = (
+                        levels.get_severity(&entry.level),
+                        levels.get_severity(effective_level),
+                    ) {
+                        if entry_sev > required_sev {
+                            continue; // skip: not enabled
+                        }
+                    } else {
+                        // If we can't get severity for either level, skip this transport
+                        continue;
+                    }
+                }
+
                 let formatted_message = match (transport.get_format(), &options.format) {
                     (Some(tf), Some(_lf)) => tf.transform(entry.clone()),
                     (Some(tf), None) => tf.transform(entry.clone()),
@@ -169,37 +238,15 @@ impl Logger {
         }
     }
 
-    fn is_level_enabled(entry_level: &str, options: &LoggerOptions) -> bool {
-        let levels = options.levels.clone().unwrap_or_default();
-        let global_level = options.level.as_deref().unwrap_or("info");
-
-        // Return false if we can't get severity for the entry level or global level
-        let entry_level_value = match levels.get_severity(entry_level) {
-            Some(value) => value,
-            None => return false,
-        };
-
-        let global_level_value = match levels.get_severity(global_level) {
-            Some(value) => value,
-            None => return false,
-        };
-
-        // If no transports are defined, fall back to the global level comparison
-        if let Some(transports) = options.get_transports() {
-            // Return true if any transport's level is prioritized and matches the severity
-            return transports.iter().any(|transport| {
-                match transport
-                    .get_level()
-                    .and_then(|level| levels.get_severity(level))
-                {
-                    Some(transport_level_value) => transport_level_value >= entry_level_value,
-                    None => global_level_value >= entry_level_value,
+    fn is_level_enabled(entry_level: &str, state: &SharedState) -> bool {
+        if let Some(min_required) = state.min_required_severity {
+            if let Some(levels) = &state.options.levels {
+                if let Some(entry_severity) = levels.get_severity(entry_level) {
+                    return min_required >= entry_severity;
                 }
-            });
+            }
         }
-
-        // Fallback to global level check if no transports
-        global_level_value >= entry_level_value
+        false
     }
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
@@ -216,7 +263,7 @@ impl Logger {
         );
 
         // Then, query each transport
-        if let Some(transports) = state.options.get_transports() {
+        if let Some(transports) = &state.options.transports {
             for transport in transports {
                 match transport.query(options) {
                     Ok(mut logs) => results.append(&mut logs),
@@ -321,10 +368,15 @@ impl Logger {
         }
     }
 
-    // though the flush method on transports is synchronous and can be called directly when this is called,
-    // processing it in the background worker ensures that messages sitting in the pipeline is processed
-    // before each transport's flush method is called
     pub fn flush(&self) -> Result<(), String> {
+        // Check if worker thread is still alive
+        if let Ok(thread_handle) = self.worker_thread.lock() {
+            if thread_handle.is_none() {
+                // Already closed, nothing to flush
+                return Ok(());
+            }
+        }
+
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
         *completed = false;
@@ -379,31 +431,38 @@ impl Logger {
             }
         }
 
+        Self::refresh_effective_levels(&mut state);
         // Process buffered entries with new configuration
         Self::process_buffered_entries(&mut state);
     }
 
     /// Adds a transport wrapped in an Arc directly to the logger
-    pub fn add_transport(&self, transport: Arc<dyn Transport>) -> bool {
+    pub fn add_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
+        self.add_logger_transport(LoggerTransport::new(transport))
+    }
+
+    /// Add a pre-configured LoggerTransport with custom level/format
+    pub fn add_logger_transport(&self, transport: LoggerTransport<LogInfo>) -> bool {
         let mut state = self.shared_state.write();
+
         if let Some(transports) = &mut state.options.transports {
-            transports.push(DebugTransport(transport));
+            transports.push(transport);
             true
         } else {
-            state.options.transports = Some(vec![DebugTransport(transport)]);
+            state.options.transports = Some(vec![transport]);
             true
         }
     }
 
     /// Removes a transport wrapped in an Arc from the logger
-    pub fn remove_transport(&self, transport: Arc<dyn Transport>) -> bool {
+    pub fn remove_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
         let mut state = self.shared_state.write();
 
         if let Some(transports) = &mut state.options.transports {
             // Find the index of the transport to remove based on pointer equality
             if let Some(index) = transports
                 .iter()
-                .position(|t| Arc::ptr_eq(&transport, &t.0))
+                .position(|t| Arc::ptr_eq(&transport, &t.get_transport()))
             {
                 transports.remove(index);
                 true
@@ -432,16 +491,12 @@ impl Default for Logger {
 
 #[cfg(feature = "log-backend")]
 use log::{Log, Metadata, Record};
-use std::sync::OnceLock;
-
-#[cfg(feature = "log-backend")]
-static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
 
 #[cfg(feature = "log-backend")]
 impl Log for Logger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         let state = self.shared_state.read();
-        Self::is_level_enabled(&metadata.level().as_str().to_lowercase(), &state.options)
+        Self::is_level_enabled(&metadata.level().as_str().to_lowercase(), &state)
     }
 
     fn log(&self, record: &Record) {
@@ -551,20 +606,324 @@ impl<'kvs> log::kv::Visitor<'kvs> for KeyValueCollector {
     }
 }
 
-#[cfg(feature = "log-backend")]
-impl Logger {
-    /// Initialize this logger as the global logger for the `log` crate
-    pub fn init_as_global(self) -> Result<(), log::SetLoggerError> {
-        let logger = GLOBAL_LOGGER.get_or_init(|| self);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logger_options::LoggerOptions;
+    use std::sync::{Arc, Mutex};
 
-        log::set_logger(logger)?;
-        log::set_max_level(log::LevelFilter::Trace);
-        Ok(())
+    // Simple mock for unit tests
+    #[derive(Clone)]
+    struct TestTransport {
+        logs: Arc<Mutex<Vec<LogInfo>>>,
     }
 
-    /// Create a logger with default options and set it as the global logger
-    pub fn init_default_global() -> Result<(), log::SetLoggerError> {
+    impl TestTransport {
+        fn new() -> Self {
+            Self {
+                logs: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn get_logs(&self) -> Vec<LogInfo> {
+            self.logs.lock().unwrap().clone()
+        }
+    }
+
+    impl Transport<LogInfo> for TestTransport {
+        fn log(&self, info: LogInfo) {
+            self.logs.lock().unwrap().push(info);
+        }
+
+        fn flush(&self) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn query(&self, _: &LogQuery) -> Result<Vec<LogInfo>, String> {
+            Ok(self.get_logs())
+        }
+    }
+
+    #[test]
+    fn test_logger_creation_with_default_options() {
         let logger = Logger::new(None);
-        logger.init_as_global()
+        assert!(logger.shared_state.read().options.levels.is_some());
+    }
+
+    #[test]
+    fn test_logger_creation_with_custom_options() {
+        let options = LoggerOptions::new().level("debug").channel_capacity(512);
+
+        let logger = Logger::new(Some(options));
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.level.as_deref(), Some("debug"));
+    }
+
+    #[test]
+    fn test_add_transport() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+
+        assert!(logger.add_transport(transport.clone()));
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_add_multiple_transports() {
+        let logger = Logger::new(None);
+        let transport1 = Arc::new(TestTransport::new());
+        let transport2 = Arc::new(TestTransport::new());
+
+        assert!(logger.add_transport(transport1));
+        assert!(logger.add_transport(transport2));
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.transports.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_remove_transport() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+
+        logger.add_transport(transport.clone());
+        assert!(logger.remove_transport(transport.clone()));
+
+        let state = logger.shared_state.read();
+        assert!(state.options.transports.as_ref().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_remove_nonexistent_transport() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+
+        assert!(!logger.remove_transport(transport));
+    }
+
+    #[test]
+    fn test_remove_transport_twice() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+
+        logger.add_transport(transport.clone());
+        assert!(logger.remove_transport(transport.clone()));
+        assert!(!logger.remove_transport(transport));
+    }
+
+    #[test]
+    fn test_level_filtering_blocks_lower_severity() {
+        let logger = Logger::new(Some(LoggerOptions::new().level("warn")));
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("info", "Should be filtered"));
+        logger.log(LogInfo::new("debug", "Should be filtered"));
+        logger.log(LogInfo::new("warn", "Should pass"));
+        logger.log(LogInfo::new("error", "Should pass"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].level, "warn");
+        assert_eq!(logs[1].level, "error");
+    }
+
+    #[test]
+    fn test_level_filtering_with_trace() {
+        let logger = Logger::new(Some(LoggerOptions::new().level("trace")));
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("trace", "Should pass"));
+        logger.log(LogInfo::new("debug", "Should pass"));
+        logger.log(LogInfo::new("info", "Should pass"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 3);
+    }
+
+    #[test]
+    fn test_transport_specific_level() {
+        #[derive(Clone)]
+        struct LeveledTransport {
+            logs: Arc<Mutex<Vec<LogInfo>>>,
+        }
+
+        impl Transport<LogInfo> for LeveledTransport {
+            fn log(&self, info: LogInfo) {
+                self.logs.lock().unwrap().push(info);
+            }
+
+            fn query(&self, _: &LogQuery) -> Result<Vec<LogInfo>, String> {
+                Ok(self.logs.lock().unwrap().clone())
+            }
+        }
+
+        let logger = Logger::new(Some(
+            LoggerOptions::new()
+                .level("trace")
+                .format(logform::passthrough()),
+        ));
+        let transport = Arc::new(LeveledTransport {
+            logs: Arc::new(Mutex::new(Vec::new())),
+        });
+        let transport = LoggerTransport::new(transport).with_level("error".to_string());
+        logger.add_logger_transport(transport);
+
+        logger.log(LogInfo::new("info", "Filtered by transport"));
+        logger.log(LogInfo::new("error", "Passes transport filter"));
+        logger.flush().unwrap();
+
+        let query = LogQuery::new();
+        let logs = logger.query(&query).unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].level, "error");
+        assert_eq!(logs[0].message, "Passes transport filter");
+    }
+
+    #[test]
+    fn test_empty_message_handling() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("info", ""));
+        logger.flush().unwrap();
+
+        // Empty messages should be filtered out
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 0);
+    }
+
+    #[test]
+    fn test_configure_updates_level() {
+        let logger = Logger::new(Some(LoggerOptions::new().level("error")));
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("warn", "Should be filtered"));
+        logger.flush().unwrap();
+        assert_eq!(transport.get_logs().len(), 0);
+
+        // Reconfigure to debug
+        logger.configure(Some(LoggerOptions::new().level("debug")));
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("warn", "Should pass now"));
+        logger.flush().unwrap();
+        assert_eq!(transport.get_logs().len(), 1);
+    }
+
+    #[test]
+    fn test_configure_clears_transports() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+        drop(state);
+
+        logger.configure(Some(LoggerOptions::new()));
+
+        let state = logger.shared_state.read();
+        assert!(state.options.transports.as_ref().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_flush_returns_ok() {
+        let logger = Logger::new(None);
+        assert!(logger.flush().is_ok());
+    }
+
+    #[test]
+    fn test_flush_with_transport() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("info", "Test"));
+        assert!(logger.flush().is_ok());
+        assert_eq!(transport.get_logs().len(), 1);
+    }
+
+    #[test]
+    fn test_close_flushes_logs() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        logger.log(LogInfo::new("info", "Test"));
+        logger.close();
+
+        assert_eq!(transport.get_logs().len(), 1);
+    }
+
+    #[test]
+    fn test_buffering_without_transports() {
+        let logger = Logger::new(None);
+
+        logger.log(LogInfo::new("info", "Buffered message"));
+
+        logger.flush().unwrap();
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.buffer.len(), 1);
+    }
+
+    #[test]
+    fn test_buffer_processed_when_transport_added() {
+        let logger = Logger::builder().format(logform::passthrough()).build();
+
+        // Log without transport - should buffer
+        logger.log(LogInfo::new("info", "Buffered"));
+
+        logger.flush().unwrap();
+        let state = logger.shared_state.read();
+        assert_eq!(state.buffer.len(), 1);
+        drop(state);
+
+        // Add transport
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport.clone());
+
+        // Log another message - should process buffer + new message
+        logger.log(LogInfo::new("info", "Direct"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].message, "Buffered");
+        assert_eq!(logs[1].message, "Direct");
+    }
+
+    #[test]
+    fn test_query_returns_results() {
+        let logger = Logger::new(None);
+        let transport = Arc::new(TestTransport::new());
+        logger.add_transport(transport);
+
+        logger.log(LogInfo::new("info", "Test message"));
+        logger.flush().unwrap();
+
+        let query = LogQuery::new();
+        let results = logger.query(&query);
+        assert!(results.is_ok());
+        assert_eq!(results.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_compute_min_severity() {
+        let options = LoggerOptions::new().level("warn");
+        let min_sev = Logger::compute_min_severity(&options);
+
+        assert!(min_sev.is_some());
+        // warn should have higher severity value than info
+        assert!(min_sev.unwrap() > 0);
     }
 }

@@ -4,9 +4,15 @@ mod logger;
 mod logger_builder;
 mod logger_levels;
 mod logger_options;
+mod logger_transport;
 pub mod transports;
 
-pub use global::{add_transport, close, configure, flush, log, query, remove_transport};
+#[cfg(feature = "log-backend")]
+pub use global::register_with_log;
+pub use global::{
+    add_transport, close, configure, flush, init, is_initialized, log, query, remove_transport,
+    try_log,
+};
 pub use logform as format;
 pub use logger::Logger;
 pub use logger_options::{BackpressureStrategy, LoggerOptions};
