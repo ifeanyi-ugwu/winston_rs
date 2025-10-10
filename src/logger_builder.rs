@@ -4,8 +4,7 @@ use crate::{
     Logger,
 };
 use logform::{Format, LogInfo};
-use std::{collections::HashMap, sync::Arc};
-use winston_transport::Transport;
+use std::collections::HashMap;
 
 pub struct LoggerBuilder {
     options: LoggerOptions,
