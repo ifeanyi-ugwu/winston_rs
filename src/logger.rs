@@ -168,7 +168,7 @@ impl Logger {
 
                         if let Some(transports) = &state.options.transports {
                             for transport in transports {
-                                let _ = transport.flush();
+                                let _ = transport.get_transport().flush();
                             }
                         }
                     }
@@ -232,7 +232,7 @@ impl Logger {
                     (None, None) => Some(entry.clone()),
                 };
                 if let Some(msg) = formatted_message {
-                    transport.log(msg);
+                    transport.get_transport().log(msg);
                 }
             }
         }
@@ -265,7 +265,7 @@ impl Logger {
         // Then, query each transport
         if let Some(transports) = &state.options.transports {
             for transport in transports {
-                match transport.query(options) {
+                match transport.get_transport().query(options) {
                     Ok(mut logs) => results.append(&mut logs),
                     Err(e) => return Err(format!("Query failed: {}", e)),
                 }

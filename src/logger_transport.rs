@@ -41,18 +41,6 @@ impl<L> LoggerTransport<L> {
     }
 }
 
-impl<L> Transport<L> for LoggerTransport<L> {
-    fn log(&self, info: L) {
-        self.transport.log(info)
-    }
-    fn flush(&self) -> Result<(), String> {
-        self.transport.flush()
-    }
-    fn query(&self, options: &LogQuery) -> Result<Vec<L>, String> {
-        self.transport.query(options)
-    }
-}
-
 impl<L> fmt::Debug for LoggerTransport<L> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LoggerTransport")
