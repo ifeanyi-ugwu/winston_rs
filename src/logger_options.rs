@@ -53,10 +53,14 @@ impl LoggerOptions {
     /// # Arguments
     ///
     /// * `transport` - A single transport to be added to the current list.
-    pub fn add_transport(mut self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
-        self.transports
-            .get_or_insert_with(Vec::new)
-            .push((TransportHandle::new(), LoggerTransport::new(transport)));
+    pub fn add_transport(
+        mut self,
+        transport: impl Transport<LogInfo> + Send + Sync + 'static,
+    ) -> Self {
+        self.transports.get_or_insert_with(Vec::new).push((
+            TransportHandle::new(),
+            LoggerTransport::new(Arc::new(transport)),
+        ));
         self
     }
 

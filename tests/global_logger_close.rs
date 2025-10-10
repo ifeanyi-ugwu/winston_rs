@@ -2,7 +2,6 @@ mod common;
 
 use common::MockTransport;
 use logform::LogInfo;
-use std::sync::Arc;
 use winston::Logger;
 
 #[test]
@@ -11,7 +10,7 @@ fn test_global_close() {
         winston::init(Logger::new(None));
     }
 
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     winston::add_transport(transport.clone());
 
     winston::log(LogInfo::new("info", "Before close"));

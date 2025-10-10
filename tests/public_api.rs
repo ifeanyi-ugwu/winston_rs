@@ -7,7 +7,7 @@ use winston::{log, BackpressureStrategy, Logger, LoggerOptions};
 
 #[test]
 fn test_logger_builder_api() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder()
         .level("info")
@@ -24,7 +24,7 @@ fn test_logger_builder_api() {
 
 #[test]
 fn test_logger_options_api() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let options = LoggerOptions::new()
         .level("debug")
@@ -40,7 +40,7 @@ fn test_logger_options_api() {
 
 #[test]
 fn test_log_macro_with_logger_instance() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     log!(logger, info, "Simple message");
@@ -61,7 +61,7 @@ fn test_log_macro_with_logger_instance() {
 
 #[test]
 fn test_log_macro_formats_message() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     let user_id = 123;
@@ -75,8 +75,8 @@ fn test_log_macro_formats_message() {
 
 #[test]
 fn test_logger_with_multiple_transports() {
-    let transport1 = Arc::new(MockTransport::new());
-    let transport2 = Arc::new(MockTransport::new());
+    let transport1 = MockTransport::new();
+    let transport2 = MockTransport::new();
 
     let logger = Logger::builder()
         .add_transport(transport1.clone())
@@ -93,7 +93,7 @@ fn test_logger_with_multiple_transports() {
 #[test]
 fn test_add_transport_at_runtime() {
     let logger = Logger::builder().build();
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     // Add transport after creation
     logger.add_transport(transport.clone());
@@ -106,16 +106,18 @@ fn test_add_transport_at_runtime() {
 
 #[test]
 fn test_remove_transport_at_runtime() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder() /*.add_transport(transport.clone())*/
+        .build();
+    let transport_handle = logger.add_transport(transport.clone());
 
     log!(logger, info, "Before removal");
     wait_for_logs(&logger);
     assert_eq!(transport.log_count(), 1);
 
     // Remove transport
-    logger.remove_transport(transport.clone());
+    logger.remove_transport(transport_handle);
     transport.clear_logs();
 
     log!(logger, info, "After removal");
@@ -126,7 +128,7 @@ fn test_remove_transport_at_runtime() {
 #[test]
 #[ignore = "test fails"]
 fn test_configure_updates_logger() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().level("error").build();
 
     log!(logger, warn, "Should be filtered");
@@ -147,7 +149,7 @@ fn test_configure_updates_logger() {
 
 #[test]
 fn test_query_with_level_filter() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::timestamp())
         .add_transport(transport.clone())
@@ -167,7 +169,7 @@ fn test_query_with_level_filter() {
 
 #[test]
 fn test_flush_ensures_delivery() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     for i in 0..10 {
@@ -181,7 +183,7 @@ fn test_flush_ensures_delivery() {
 
 #[test]
 fn test_close_flushes_pending_logs() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     log!(logger, info, "Final message");
@@ -193,7 +195,7 @@ fn test_close_flushes_pending_logs() {
 #[test]
 fn test_default_logger_creation() {
     let logger = Logger::default();
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     logger.add_transport(transport.clone());
 
     log!(logger, info, "Using default logger");
@@ -204,7 +206,7 @@ fn test_default_logger_creation() {
 
 #[test]
 fn test_level_hierarchy() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("warn")
         .add_transport(transport.clone())
@@ -225,7 +227,7 @@ fn test_level_hierarchy() {
 
 #[test]
 fn test_metadata_preservation() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
         .add_transport(transport.clone())
@@ -248,7 +250,7 @@ fn test_metadata_preservation() {
 
 #[test]
 fn test_empty_message_filtered() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     log!(logger, info, "");

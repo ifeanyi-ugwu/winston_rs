@@ -2,7 +2,6 @@ mod common;
 
 use common::{MockConfig, MockTransport};
 use logform::LogInfo;
-use std::sync::Arc;
 use winston::Logger;
 
 #[test]
@@ -11,8 +10,8 @@ fn test_transport_log_failure_does_not_crash() {
         should_fail_log: true,
         ..Default::default()
     };
-    let failing_transport = Arc::new(MockTransport::with_config(config));
-    let working_transport = Arc::new(MockTransport::new());
+    let failing_transport = MockTransport::with_config(config);
+    let working_transport = MockTransport::new();
 
     let logger = Logger::builder()
         .add_transport(failing_transport.clone())
@@ -35,7 +34,7 @@ fn test_transport_flush_failure() {
         should_fail_flush: true,
         ..Default::default()
     };
-    let transport = Arc::new(MockTransport::with_config(config));
+    let transport = MockTransport::with_config(config);
 
     let logger = Logger::builder().add_transport(transport).build();
 
@@ -55,7 +54,7 @@ fn test_logging_without_transports_then_adding() {
     logger.log(LogInfo::new("info", "Buffered message 2"));
 
     // Add transport - should process buffer
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     logger.add_transport(transport.clone());
 
     // Log another message
@@ -72,7 +71,7 @@ fn test_logging_without_transports_then_adding() {
 
 #[test]
 fn test_invalid_log_level() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("info")
         .add_transport(transport.clone())
@@ -88,7 +87,7 @@ fn test_invalid_log_level() {
 
 #[test]
 fn test_empty_message_handling() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     logger.log(LogInfo::new("info", ""));
@@ -100,7 +99,7 @@ fn test_empty_message_handling() {
 
 #[test]
 fn test_large_message() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     let large_message = "x".repeat(1_000_000); // 1MB message
@@ -122,7 +121,7 @@ fn test_rapid_configure_calls() {
     }
 
     // Logger should still be functional
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     logger.add_transport(transport.clone());
     logger.log(LogInfo::new("info", "After reconfig"));
     logger.flush().unwrap();
@@ -132,7 +131,7 @@ fn test_rapid_configure_calls() {
 
 #[test]
 fn test_query_with_no_results() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport).build();
 
     logger.log(LogInfo::new("info", "Test"));
@@ -146,7 +145,7 @@ fn test_query_with_no_results() {
 
 #[test]
 fn test_close_then_log() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     logger.close();
@@ -167,12 +166,14 @@ fn test_flush_empty_logger() {
 
 #[test]
 fn test_remove_all_transports_then_add() {
-    let transport1 = Arc::new(MockTransport::new());
-    let transport2 = Arc::new(MockTransport::new());
+    let transport1 = MockTransport::new();
+    let transport2 = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport1.clone()).build();
+    let logger = Logger::builder() /*.add_transport(transport1.clone())*/
+        .build();
+    let transport1_handle = logger.add_transport(transport1.clone());
 
-    logger.remove_transport(transport1);
+    logger.remove_transport(transport1_handle);
 
     // Add new transport after removing all
     logger.add_transport(transport2.clone());

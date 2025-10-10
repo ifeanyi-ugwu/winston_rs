@@ -3,12 +3,11 @@
 mod common;
 
 use common::MockTransport;
-use std::sync::Arc;
 use winston::Logger;
 
 #[test]
 fn test_log_backend_basic_integration() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
@@ -31,7 +30,7 @@ fn test_log_backend_basic_integration() {
 
 #[test]
 fn test_log_backend_level_filtering() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder()
         .level("warn")
@@ -59,7 +58,7 @@ fn test_log_backend_level_filtering() {
 
 #[test]
 fn test_log_backend_metadata_capture() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
@@ -82,7 +81,7 @@ fn test_log_backend_metadata_capture() {
 
 #[test]
 fn test_log_backend_with_format() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder()
         .add_transport(transport.clone())
@@ -103,7 +102,7 @@ fn test_log_backend_with_format() {
 
 #[test]
 fn test_log_backend_enabled_check() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder()
         .level("error")
@@ -132,7 +131,7 @@ fn test_log_backend_enabled_check() {
 
 #[test]
 fn test_log_backend_concurrent_logging() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
@@ -162,7 +161,7 @@ fn test_log_backend_concurrent_logging() {
 
 #[test]
 fn test_log_backend_mixed_with_winston() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
@@ -185,7 +184,7 @@ fn test_log_backend_mixed_with_winston() {
 fn test_log_backend_with_key_values() {
     use log::kv::Source;
 
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
@@ -207,7 +206,7 @@ fn test_log_backend_with_key_values() {
 
 #[test]
 fn test_log_backend_flush() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder().add_transport(transport.clone()).build();
 

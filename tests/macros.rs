@@ -2,12 +2,11 @@ mod common;
 
 use common::MockTransport;
 use serial_test::serial;
-use std::sync::Arc;
 use winston::{log, meta, Logger};
 
 #[test]
 fn test_log_macro_with_logger_simple_message() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     log!(logger, info, "Simple message");
@@ -21,7 +20,7 @@ fn test_log_macro_with_logger_simple_message() {
 
 #[test]
 fn test_log_macro_with_logger_and_metadata() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
         .add_transport(transport.clone())
@@ -39,7 +38,7 @@ fn test_log_macro_with_logger_and_metadata() {
 
 #[test]
 fn test_log_macro_with_logger_and_meta_macro() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
         .add_transport(transport.clone())
@@ -62,7 +61,7 @@ fn test_log_macro_with_logger_and_meta_macro() {
 
 #[test]
 fn test_log_macro_with_format_string() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     let user = "Alice";
@@ -97,7 +96,7 @@ fn test_meta_macro_with_different_types() {
 
 #[test]
 fn test_log_macro_different_levels() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("trace")
         .add_transport(transport.clone())
@@ -121,7 +120,7 @@ fn test_log_macro_different_levels() {
 
 #[test]
 fn test_log_macro_with_trailing_comma() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     log!(logger, info, "Message", key = "value",);
@@ -132,7 +131,7 @@ fn test_log_macro_with_trailing_comma() {
 
 #[test]
 fn test_log_macro_with_complex_metadata_values() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
         .add_transport(transport.clone())
@@ -155,7 +154,7 @@ fn test_log_macro_with_complex_metadata_values() {
 #[test]
 #[serial]
 fn test_log_macro_with_global_logger() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     if !winston::is_initialized() {
         winston::init(Logger::builder().build());
@@ -173,7 +172,7 @@ fn test_log_macro_with_global_logger() {
 #[test]
 #[serial]
 fn test_log_macro_with_global_and_metadata() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     if !winston::is_initialized() {
         winston::init(Logger::builder().format(logform::passthrough()).build());
@@ -199,7 +198,7 @@ fn test_log_macro_with_global_and_metadata() {
 #[test]
 #[serial]
 fn test_log_macro_with_global_and_meta_macro() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     if !winston::is_initialized() {
         winston::init(Logger::builder().format(logform::passthrough()).build());

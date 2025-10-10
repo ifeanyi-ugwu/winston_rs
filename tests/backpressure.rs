@@ -2,7 +2,6 @@ mod common;
 
 use common::{MockConfig, MockTransport};
 use logform::LogInfo;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use winston::{BackpressureStrategy, Logger};
 
@@ -13,7 +12,7 @@ fn test_backpressure_block_strategy() {
         delay: Duration::from_millis(100),
         ..Default::default()
     };
-    let transport = Arc::new(MockTransport::with_config(config));
+    let transport = MockTransport::with_config(config);
 
     let logger = Logger::builder()
         .channel_capacity(2)
@@ -51,7 +50,7 @@ fn test_backpressure_drop_oldest_strategy() {
         delay: Duration::from_millis(50),
         ..Default::default()
     };
-    let transport = Arc::new(MockTransport::with_config(config));
+    let transport = MockTransport::with_config(config);
 
     let logger = Logger::builder()
         .channel_capacity(2)
@@ -85,7 +84,7 @@ fn test_backpressure_drop_current_strategy() {
         delay: Duration::from_millis(50),
         ..Default::default()
     };
-    let transport = Arc::new(MockTransport::with_config(config));
+    let transport = MockTransport::with_config(config);
 
     let logger = Logger::builder()
         .channel_capacity(2)
@@ -117,7 +116,7 @@ fn test_backpressure_strategies_differ() {
     let delay = Duration::from_millis(30);
 
     // Test Block strategy
-    let transport_block = Arc::new(MockTransport::with_delay(delay));
+    let transport_block = MockTransport::with_delay(delay);
     let logger_block = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::Block)
@@ -132,7 +131,7 @@ fn test_backpressure_strategies_differ() {
     logger_block.flush().unwrap();
 
     // Test DropCurrent strategy
-    let transport_drop = Arc::new(MockTransport::with_delay(delay));
+    let transport_drop = MockTransport::with_delay(delay);
     let logger_drop = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::DropCurrent)
@@ -161,7 +160,7 @@ fn test_backpressure_strategies_differ() {
 
 #[test]
 fn test_no_backpressure_with_sufficient_capacity() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
 
     let logger = Logger::builder()
         .channel_capacity(1000)
@@ -195,7 +194,7 @@ fn test_backpressure_recovers_after_flush() {
         delay: Duration::from_millis(10),
         ..Default::default()
     };
-    let transport = Arc::new(MockTransport::with_config(config));
+    let transport = MockTransport::with_config(config);
 
     let logger = Logger::builder()
         .channel_capacity(2)

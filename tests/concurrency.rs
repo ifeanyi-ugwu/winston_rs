@@ -8,7 +8,7 @@ use winston::Logger;
 
 #[test]
 fn test_concurrent_logging() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Arc::new(Logger::builder().add_transport(transport.clone()).build());
 
     let num_threads = 10;
@@ -57,10 +57,10 @@ fn test_concurrent_add_remove_transport() {
             let logger = Arc::clone(&logger);
 
             thread::spawn(move || {
-                let transport = Arc::new(MockTransport::new());
+                let transport = MockTransport::new();
 
                 // Add transport
-                logger.add_transport(transport.clone());
+                let transport_handle = logger.add_transport(transport.clone());
 
                 // Log some messages
                 for i in 0..10 {
@@ -70,7 +70,7 @@ fn test_concurrent_add_remove_transport() {
                 logger.flush().unwrap();
 
                 // Remove transport
-                logger.remove_transport(transport.clone());
+                logger.remove_transport(transport_handle);
             })
         })
         .collect();
@@ -80,7 +80,7 @@ fn test_concurrent_add_remove_transport() {
     }
 
     // Logger should still be functional
-    let final_transport = Arc::new(MockTransport::new());
+    let final_transport = MockTransport::new();
     logger.add_transport(final_transport.clone());
     logger.log(LogInfo::new("info", "Final message"));
     logger.flush().unwrap();
@@ -91,7 +91,7 @@ fn test_concurrent_add_remove_transport() {
 #[test]
 fn test_concurrent_configure() {
     let logger = Arc::new(Logger::builder().build());
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     //logger.add_transport(transport.clone());
 
     let num_threads = 5;
@@ -123,9 +123,7 @@ fn test_concurrent_configure() {
 
 #[test]
 fn test_logging_non_blocking() {
-    let transport = Arc::new(MockTransport::with_delay(std::time::Duration::from_millis(
-        100,
-    )));
+    let transport = MockTransport::with_delay(std::time::Duration::from_millis(100));
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     let num_messages = 10;
@@ -150,9 +148,7 @@ fn test_logging_non_blocking() {
 
 #[test]
 fn test_flush_waits_for_processing() {
-    let transport = Arc::new(MockTransport::with_delay(std::time::Duration::from_millis(
-        50,
-    )));
+    let transport = MockTransport::with_delay(std::time::Duration::from_millis(50));
     let logger = Logger::builder().add_transport(transport.clone()).build();
 
     for i in 0..5 {
@@ -174,7 +170,7 @@ fn test_flush_waits_for_processing() {
 fn test_close_from_multiple_threads() {
     let logger = Arc::new(
         Logger::builder()
-            .add_transport(Arc::new(MockTransport::new()))
+            .add_transport(MockTransport::new())
             .build(),
     );
 
@@ -196,11 +192,11 @@ fn test_close_from_multiple_threads() {
 
 #[test]
 fn test_concurrent_query() {
-    let transport = Arc::new(MockTransport::new());
+    let transport = MockTransport::new();
     let logger = Arc::new(
         Logger::builder()
             .format(logform::timestamp())
-            .add_transport(transport.clone())
+            .add_transport(transport)
             .build(),
     );
 
