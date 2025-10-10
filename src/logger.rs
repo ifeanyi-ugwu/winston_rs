@@ -397,6 +397,14 @@ impl Logger {
 
         let _ = self.sender.send(LogMessage::Shutdown);
 
+        // Wake all threads waiting on flush BEFORE joining worker
+        {
+            let (lock, cvar) = &*self.flush_complete;
+            let mut completed = lock.lock().unwrap();
+            *completed = true; // Set to true so they don't wait again
+            cvar.notify_all(); // Wake ALL waiting threads
+        }
+
         if let Ok(mut thread_handle) = self.worker_thread.lock() {
             if let Some(handle) = thread_handle.take() {
                 if let Err(e) = handle.join() {
