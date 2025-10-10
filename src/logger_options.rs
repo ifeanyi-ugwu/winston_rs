@@ -146,14 +146,15 @@ impl LoggerOptions {
     /// ];
     /// let options = LoggerOptions::new().transports(transports);
     /// ```
-    pub fn transports(
-        mut self,
-        transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
-    ) -> Self {
+    pub fn transports<I>(mut self, transports: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: IntoLoggerTransport,
+    {
         self.transports = Some(
             transports
                 .into_iter()
-                .map(|t| (TransportHandle::new(), LoggerTransport::new(t)))
+                .map(|t| (TransportHandle::new(), t.into_logger_transport()))
                 .collect(),
         );
         self

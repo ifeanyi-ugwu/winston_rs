@@ -36,10 +36,11 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn transports(
-        mut self,
-        transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
-    ) -> Self {
+    pub fn transports<I>(mut self, transports: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: IntoLoggerTransport,
+    {
         self.options = self.options.transports(transports);
         self
     }
