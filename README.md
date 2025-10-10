@@ -84,23 +84,48 @@ pub trait Transport: Send + Sync {
 **Multiple transports example:**
 
 ```rust
+// Using builder - all transports use logger's global level and format
 let logger = Logger::builder()
-    .transport(stdout())              // Console: uses logger's level
-    .transport(File::builder()         // File: custom level
-        .filename("app.log")
-        .level("debug")
-        .build())
+    .transport(stdout())
+    .transport(File::builder().filename("app.log").build())
     .build();
 
-// Or use the fluent builder for custom configuration per transport
+// For custom level/format per transport, you have two options:
+
+// Option 1: Runtime fluent API with logger.transport()
 let logger = Logger::new(None);
-logger.transport(stdout())
+
+let console_handle = logger.transport(stdout())
     .with_level("info")
+    .with_format(colorize())
     .add();
 
-logger.transport(File::builder().filename("app.log").build())
+let file_handle = logger.transport(File::builder().filename("app.log").build())
     .with_level("debug")
+    .with_format(json())
     .add();
+
+// Option 2: Pre-configure with LoggerTransport (works both build-time and runtime)
+use winston::LoggerTransport;
+
+let console_transport = LoggerTransport::new(stdout())
+    .with_level("info")
+    .with_format(colorize());
+
+let file_transport = LoggerTransport::new(File::builder().filename("app.log").build())
+    .with_level("debug")
+    .with_format(json());
+
+// Use in builder (build-time)
+let logger = Logger::builder()
+    .transport(console_transport.clone())
+    .transport(file_transport.clone())
+    .build();
+
+// Or add at runtime
+let logger = Logger::new(None);
+let console_handle = logger.add_transport(console_transport);
+let file_handle = logger.add_transport(file_transport);
 ```
 
 ### Levels - Message Priority
