@@ -7,7 +7,7 @@ use winston::{log, meta, Logger};
 #[test]
 fn test_log_macro_with_logger_simple_message() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     log!(logger, info, "Simple message");
     logger.flush().unwrap();
@@ -23,7 +23,7 @@ fn test_log_macro_with_logger_and_metadata() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(logger, warn, "Warning message", key1 = "value1", key2 = 42);
@@ -41,7 +41,7 @@ fn test_log_macro_with_logger_and_meta_macro() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(
@@ -62,7 +62,7 @@ fn test_log_macro_with_logger_and_meta_macro() {
 #[test]
 fn test_log_macro_with_format_string() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     let user = "Alice";
     let count = 5;
@@ -99,7 +99,7 @@ fn test_log_macro_different_levels() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("trace")
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(logger, trace, "Trace message");
@@ -121,7 +121,7 @@ fn test_log_macro_different_levels() {
 #[test]
 fn test_log_macro_with_trailing_comma() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     log!(logger, info, "Message", key = "value",);
     logger.flush().unwrap();
@@ -134,7 +134,7 @@ fn test_log_macro_with_complex_metadata_values() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     let nested_value = serde_json::json!({

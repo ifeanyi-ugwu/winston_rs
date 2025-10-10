@@ -9,7 +9,7 @@ use winston::Logger;
 fn test_log_backend_basic_integration() {
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register with log crate");
@@ -34,7 +34,7 @@ fn test_log_backend_level_filtering() {
 
     let logger = Logger::builder()
         .level("warn")
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     winston::init(logger);
@@ -60,7 +60,7 @@ fn test_log_backend_level_filtering() {
 fn test_log_backend_metadata_capture() {
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register");
@@ -84,7 +84,7 @@ fn test_log_backend_with_format() {
     let transport = MockTransport::new();
 
     let logger = Logger::builder()
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .format(winston::format::json())
         .build();
 
@@ -106,7 +106,7 @@ fn test_log_backend_enabled_check() {
 
     let logger = Logger::builder()
         .level("error")
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     winston::init(logger);
@@ -133,7 +133,7 @@ fn test_log_backend_enabled_check() {
 fn test_log_backend_concurrent_logging() {
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register");
@@ -163,7 +163,7 @@ fn test_log_backend_concurrent_logging() {
 fn test_log_backend_mixed_with_winston() {
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register");
@@ -186,7 +186,7 @@ fn test_log_backend_with_key_values() {
 
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register");
@@ -208,7 +208,7 @@ fn test_log_backend_with_key_values() {
 fn test_log_backend_flush() {
     let transport = MockTransport::new();
 
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     winston::init(logger);
     winston::register_with_log().expect("Failed to register");

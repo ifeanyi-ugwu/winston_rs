@@ -14,8 +14,8 @@ fn test_transport_log_failure_does_not_crash() {
     let working_transport = MockTransport::new();
 
     let logger = Logger::builder()
-        .add_transport(failing_transport.clone())
-        .add_transport(working_transport.clone())
+        .transport(failing_transport.clone())
+        .transport(working_transport.clone())
         .build();
 
     logger.log(LogInfo::new("info", "Test message"));
@@ -36,7 +36,7 @@ fn test_transport_flush_failure() {
     };
     let transport = MockTransport::with_config(config);
 
-    let logger = Logger::builder().add_transport(transport).build();
+    let logger = Logger::builder().transport(transport).build();
 
     logger.log(LogInfo::new("info", "Test"));
 
@@ -74,7 +74,7 @@ fn test_invalid_log_level() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("info")
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     // Log with invalid level - should still be processed
@@ -88,7 +88,7 @@ fn test_invalid_log_level() {
 #[test]
 fn test_empty_message_handling() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     logger.log(LogInfo::new("info", ""));
     logger.flush().unwrap();
@@ -100,7 +100,7 @@ fn test_empty_message_handling() {
 #[test]
 fn test_large_message() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     let large_message = "x".repeat(1_000_000); // 1MB message
     logger.log(LogInfo::new("info", &large_message));
@@ -132,7 +132,7 @@ fn test_rapid_configure_calls() {
 #[test]
 fn test_query_with_no_results() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport).build();
+    let logger = Logger::builder().transport(transport).build();
 
     logger.log(LogInfo::new("info", "Test"));
     logger.flush().unwrap();
@@ -146,7 +146,7 @@ fn test_query_with_no_results() {
 #[test]
 fn test_close_then_log() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     logger.close();
 

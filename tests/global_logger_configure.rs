@@ -15,7 +15,7 @@ fn test_global_configure() {
     winston::configure(Some(
         winston::LoggerOptions::new()
             .level("error")
-            .add_transport(transport.clone()),
+            .transport(transport.clone()),
     ));
 
     winston::log(LogInfo::new("info", "Filtered"));

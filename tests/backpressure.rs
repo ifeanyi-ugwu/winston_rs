@@ -17,7 +17,7 @@ fn test_backpressure_block_strategy() {
     let logger = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::Block)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     let start = Instant::now();
@@ -55,7 +55,7 @@ fn test_backpressure_drop_oldest_strategy() {
     let logger = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::DropOldest)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     // Rapidly send 5 messages
@@ -89,7 +89,7 @@ fn test_backpressure_drop_current_strategy() {
     let logger = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::DropCurrent)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     // Rapidly send 5 messages
@@ -120,7 +120,7 @@ fn test_backpressure_strategies_differ() {
     let logger_block = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::Block)
-        .add_transport(transport_block.clone())
+        .transport(transport_block.clone())
         .build();
 
     let start_block = Instant::now();
@@ -135,7 +135,7 @@ fn test_backpressure_strategies_differ() {
     let logger_drop = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::DropCurrent)
-        .add_transport(transport_drop.clone())
+        .transport(transport_drop.clone())
         .build();
 
     let start_drop = Instant::now();
@@ -165,7 +165,7 @@ fn test_no_backpressure_with_sufficient_capacity() {
     let logger = Logger::builder()
         .channel_capacity(1000)
         .backpressure_strategy(BackpressureStrategy::Block)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     let start = Instant::now();
@@ -199,7 +199,7 @@ fn test_backpressure_recovers_after_flush() {
     let logger = Logger::builder()
         .channel_capacity(2)
         .backpressure_strategy(BackpressureStrategy::DropCurrent)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     // Fill and overflow

@@ -13,7 +13,7 @@ fn test_logger_builder_api() {
         .level("info")
         .channel_capacity(512)
         .backpressure_strategy(BackpressureStrategy::Block)
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     logger.log(LogInfo::new("info", "Test message"));
@@ -28,7 +28,7 @@ fn test_logger_options_api() {
 
     let options = LoggerOptions::new()
         .level("debug")
-        .add_transport(transport.clone());
+        .transport(transport.clone());
 
     let logger = Logger::new(Some(options));
 
@@ -41,7 +41,7 @@ fn test_logger_options_api() {
 #[test]
 fn test_log_macro_with_logger_instance() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     log!(logger, info, "Simple message");
     log!(
@@ -62,7 +62,7 @@ fn test_log_macro_with_logger_instance() {
 #[test]
 fn test_log_macro_formats_message() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     let user_id = 123;
     let message = format!("User {} logged in", user_id);
@@ -79,8 +79,8 @@ fn test_logger_with_multiple_transports() {
     let transport2 = MockTransport::new();
 
     let logger = Logger::builder()
-        .add_transport(transport1.clone())
-        .add_transport(transport2.clone())
+        .transport(transport1.clone())
+        .transport(transport2.clone())
         .build();
 
     log!(logger, info, "Broadcast message");
@@ -138,7 +138,7 @@ fn test_configure_updates_logger() {
     logger.configure(Some(
         LoggerOptions::new()
             .level("debug")
-            .add_transport(transport.clone()),
+            .transport(transport.clone()),
     ));
 
     log!(logger, warn, "Should pass now");
@@ -152,7 +152,7 @@ fn test_query_with_level_filter() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::timestamp())
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(logger, info, "Info message");
@@ -170,7 +170,7 @@ fn test_query_with_level_filter() {
 #[test]
 fn test_flush_ensures_delivery() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     for i in 0..10 {
         log!(logger, info, format!("Message {}", i));
@@ -184,7 +184,7 @@ fn test_flush_ensures_delivery() {
 #[test]
 fn test_close_flushes_pending_logs() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     log!(logger, info, "Final message");
     logger.close();
@@ -209,7 +209,7 @@ fn test_level_hierarchy() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .level("warn")
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(logger, trace, "Trace - filtered");
@@ -230,7 +230,7 @@ fn test_metadata_preservation() {
     let transport = MockTransport::new();
     let logger = Logger::builder()
         .format(logform::passthrough())
-        .add_transport(transport.clone())
+        .transport(transport.clone())
         .build();
 
     log!(
@@ -251,7 +251,7 @@ fn test_metadata_preservation() {
 #[test]
 fn test_empty_message_filtered() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().add_transport(transport.clone()).build();
+    let logger = Logger::builder().transport(transport.clone()).build();
 
     log!(logger, info, "");
     wait_for_logs(&logger);
