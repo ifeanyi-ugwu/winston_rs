@@ -8,10 +8,77 @@ use logform::LogInfo;
 use parking_lot::RwLock;
 use std::{
     collections::VecDeque,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Condvar, Mutex,
+    },
     thread,
 };
 use winston_transport::{LogQuery, Transport};
+
+// Static counter for generating unique transport IDs
+static NEXT_TRANSPORT_ID: AtomicUsize = AtomicUsize::new(0);
+
+/// A handle for referencing and removing transports
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct TransportHandle(usize);
+
+impl TransportHandle {
+    pub(crate) fn new() -> Self {
+        TransportHandle(NEXT_TRANSPORT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+/// Builder for configuring a transport before adding it to the logger
+pub struct TransportBuilder<'a, T> {
+    logger: &'a Logger,
+    transport: T,
+    level: Option<String>,
+    format: Option<Arc<dyn logform::Format<Input = LogInfo> + Send + Sync>>,
+}
+
+impl<'a, T> TransportBuilder<'a, T>
+where
+    T: Transport<LogInfo> + Send + Sync + 'static,
+{
+    /// Set a custom log level for this transport
+    pub fn with_level(mut self, level: impl Into<String>) -> Self {
+        self.level = Some(level.into());
+        self
+    }
+
+    /// Set a custom format for this transport
+    pub fn with_format<F>(mut self, format: F) -> Self
+    where
+        F: logform::Format<Input = LogInfo> + Send + Sync + 'static,
+    {
+        self.format = Some(Arc::new(format));
+        self
+    }
+
+    /// Consume the builder and add the transport to the logger, returning a handle
+    pub fn add(self) -> TransportHandle {
+        let handle = TransportHandle::new();
+        let arc_transport = Arc::new(self.transport);
+
+        let mut logger_transport = LoggerTransport::new(arc_transport);
+        if let Some(lvl) = self.level {
+            logger_transport = logger_transport.with_level(lvl);
+        }
+        if let Some(fmt) = self.format {
+            logger_transport = logger_transport.with_format(fmt);
+        }
+
+        let mut state = self.logger.shared_state.write();
+        if let Some(transports) = &mut state.options.transports {
+            transports.push((handle, logger_transport));
+        } else {
+            state.options.transports = Some(vec![(handle, logger_transport)]);
+        }
+
+        handle
+    }
+}
 
 #[derive(Debug)]
 pub enum LogMessage {
@@ -60,9 +127,7 @@ impl Logger {
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
-            //println!("Worker thread starting..."); // Debug print
             Self::worker_loop(worker_receiver, worker_shared_state, worker_flush_complete);
-            //println!("Worker thread finished."); // Debug print
         });
 
         Logger {
@@ -82,7 +147,7 @@ impl Logger {
             .and_then(|lvl| levels.get_severity(lvl));
 
         if let Some(transports) = &options.transports {
-            for transport in transports {
+            for (_handle, transport) in transports {
                 if let Some(transport_level) = transport.get_level() {
                     if let Some(transport_severity) = levels.get_severity(transport_level) {
                         min_severity = Some(
@@ -122,14 +187,11 @@ impl Logger {
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
                         Self::process_buffered_entries(&mut state);
-                        Self::process_entry(&entry, &state)
-                        //Self::process_entry(&entry, &state.options);
-                        //Self::process_buffered_entries(&mut state);
+                        Self::process_entry(&entry, &state);
                     }
                 }
                 LogMessage::Configure(new_options) => {
                     let mut state = shared_state.write();
-                    //state.options = new_options;
                     // Update only the provided options
                     if let Some(level) = new_options.level {
                         state.options.level = Some(level);
@@ -143,13 +205,11 @@ impl Logger {
                     if let Some(format) = new_options.format {
                         state.options.format = Some(format);
                     }
-                    // Add any other options that need to be configurable
 
                     Self::refresh_effective_levels(&mut state);
                     // Process buffered entries with new configuration
                     Self::process_buffered_entries(&mut state);
                 }
-                //LogMessage::Shutdown => break,
                 LogMessage::Shutdown => {
                     let mut state = shared_state.write();
                     Self::process_buffered_entries(&mut state);
@@ -167,7 +227,7 @@ impl Logger {
                         Self::process_buffered_entries(&mut state);
 
                         if let Some(transports) = &state.options.transports {
-                            for transport in transports {
+                            for (_handle, transport) in transports {
                                 let _ = transport.get_transport().flush();
                             }
                         }
@@ -189,25 +249,13 @@ impl Logger {
     }
 
     fn process_entry(entry: &LogInfo, state: &SharedState) {
-        //TODO: remove this check, it isn't consistent with winstonjs, but may ensure consistent message structure and prevent unnecessary writes
         if entry.message.is_empty() && entry.meta.is_empty() {
             return;
         }
 
-        // Level filtering is intentionally NOT performed here in process_entry().
-        // While pre-filtering would save some CPU cycles, it would slow down the log()
-        // call and increase backpressure on the channel, causing the buffer to fill faster.
-        // By skipping the check here and deferring it to individual transports, we maximize
-        // throughput at the cost of slightly more memory usage for entries that will
-        // ultimately be discarded. This design prioritizes logging performance over memory
-        // efficiency, which is consistent with the async, non-blocking architecture.
-        /*if !Self::is_level_enabled(&entry.level, &state) {
-            return;
-        }*/
-
         let options = &state.options;
         if let Some(transports) = &options.transports {
-            for transport in transports {
+            for (_handle, transport) in transports {
                 // Check if this transport cares about the level
                 let effective_level = transport.get_level().or_else(|| options.level.as_ref());
 
@@ -264,7 +312,7 @@ impl Logger {
 
         // Then, query each transport
         if let Some(transports) = &state.options.transports {
-            for transport in transports {
+            for (_handle, transport) in transports {
                 match transport.get_transport().query(options) {
                     Ok(mut logs) => results.append(&mut logs),
                     Err(e) => return Err(format!("Query failed: {}", e)),
@@ -436,50 +484,62 @@ impl Logger {
         Self::process_buffered_entries(&mut state);
     }
 
-    /// Adds a transport wrapped in an Arc directly to the logger
-    pub fn add_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
-        self.add_logger_transport(LoggerTransport::new(transport))
-    }
-
-    /// Add a pre-configured LoggerTransport with custom level/format
-    pub fn add_logger_transport(&self, transport: LoggerTransport<LogInfo>) -> bool {
-        let mut state = self.shared_state.write();
-
-        if let Some(transports) = &mut state.options.transports {
-            transports.push(transport);
-            true
-        } else {
-            state.options.transports = Some(vec![transport]);
-            true
+    /// Start building a transport configuration. Use the builder to configure
+    /// level and format, then call `.add()` to add it to the logger.
+    ///
+    /// # Example
+    /// ```
+    /// let handle = logger.transport(ConsoleTransport::new())
+    ///     .with_level("error")
+    ///     .with_format(json_format())
+    ///     .add();
+    /// ```
+    pub fn transport<T>(&self, transport: T) -> TransportBuilder<T>
+    where
+        T: Transport<LogInfo> + Send + Sync + 'static,
+    {
+        TransportBuilder {
+            logger: self,
+            transport,
+            level: None,
+            format: None,
         }
     }
 
-    /// Removes a transport wrapped in an Arc from the logger
-    pub fn remove_transport(&self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
+    /// Convenience method: add a transport directly without configuration.
+    /// Returns a handle that can be used to remove the transport later.
+    ///
+    /// # Example
+    /// ```
+    /// let handle = logger.add_transport(ConsoleTransport::new());
+    /// // Later...
+    /// logger.remove_transport(handle);
+    /// ```
+    pub fn add_transport<T>(&self, transport: T) -> TransportHandle
+    where
+        T: Transport<LogInfo> + Send + Sync + 'static,
+    {
+        self.transport(transport).add()
+    }
+
+    /// Remove a transport by its handle.
+    /// Returns `true` if the transport was found and removed, `false` otherwise.
+    pub fn remove_transport(&self, handle: TransportHandle) -> bool {
         let mut state = self.shared_state.write();
 
         if let Some(transports) = &mut state.options.transports {
-            // Find the index of the transport to remove based on pointer equality
-            if let Some(index) = transports
-                .iter()
-                .position(|t| Arc::ptr_eq(&transport, &t.get_transport()))
-            {
+            if let Some(index) = transports.iter().position(|(h, _)| *h == handle) {
                 transports.remove(index);
-                true
-            } else {
-                false
+                return true;
             }
-        } else {
-            false
         }
+        false
     }
 }
 
 impl Drop for Logger {
     fn drop(&mut self) {
-        //println!("Dropping Logger!"); // Debug print
         self.close();
-        // println!("Logger dropped"); // Debug print
     }
 }
 
@@ -662,34 +722,37 @@ mod tests {
     #[test]
     fn test_add_transport() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
 
-        assert!(logger.add_transport(transport.clone()));
+        let handle = logger.add_transport(transport);
 
         let state = logger.shared_state.read();
         assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+
+        // Verify the handle works
+        assert!(logger.remove_transport(handle));
     }
 
     #[test]
     fn test_add_multiple_transports() {
         let logger = Logger::new(None);
-        let transport1 = Arc::new(TestTransport::new());
-        let transport2 = Arc::new(TestTransport::new());
 
-        assert!(logger.add_transport(transport1));
-        assert!(logger.add_transport(transport2));
+        let handle1 = logger.add_transport(TestTransport::new());
+        let handle2 = logger.add_transport(TestTransport::new());
 
         let state = logger.shared_state.read();
         assert_eq!(state.options.transports.as_ref().unwrap().len(), 2);
+
+        // Verify handles are different
+        assert_ne!(handle1, handle2);
     }
 
     #[test]
     fn test_remove_transport() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let handle = logger.add_transport(TestTransport::new());
 
-        logger.add_transport(transport.clone());
-        assert!(logger.remove_transport(transport.clone()));
+        assert!(logger.remove_transport(handle));
 
         let state = logger.shared_state.read();
         assert!(state.options.transports.as_ref().unwrap().is_empty());
@@ -698,25 +761,45 @@ mod tests {
     #[test]
     fn test_remove_nonexistent_transport() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let fake_handle = TransportHandle(9999);
 
-        assert!(!logger.remove_transport(transport));
+        assert!(!logger.remove_transport(fake_handle));
     }
 
     #[test]
     fn test_remove_transport_twice() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let handle = logger.add_transport(TestTransport::new());
 
-        logger.add_transport(transport.clone());
-        assert!(logger.remove_transport(transport.clone()));
-        assert!(!logger.remove_transport(transport));
+        assert!(logger.remove_transport(handle));
+        assert!(!logger.remove_transport(handle));
+    }
+
+    #[test]
+    fn test_transport_builder() {
+        let logger = Logger::new(None);
+        let transport = TestTransport::new();
+
+        let handle = logger
+            .transport(transport.clone())
+            .with_level("error")
+            .add();
+
+        logger.log(LogInfo::new("info", "Should be filtered"));
+        logger.log(LogInfo::new("error", "Should pass"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].level, "error");
+
+        assert!(logger.remove_transport(handle));
     }
 
     #[test]
     fn test_level_filtering_blocks_lower_severity() {
         let logger = Logger::new(Some(LoggerOptions::new().level("warn")));
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("info", "Should be filtered"));
@@ -734,7 +817,7 @@ mod tests {
     #[test]
     fn test_level_filtering_with_trace() {
         let logger = Logger::new(Some(LoggerOptions::new().level("trace")));
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("trace", "Should pass"));
@@ -748,39 +831,25 @@ mod tests {
 
     #[test]
     fn test_transport_specific_level() {
-        #[derive(Clone)]
-        struct LeveledTransport {
-            logs: Arc<Mutex<Vec<LogInfo>>>,
-        }
-
-        impl Transport<LogInfo> for LeveledTransport {
-            fn log(&self, info: LogInfo) {
-                self.logs.lock().unwrap().push(info);
-            }
-
-            fn query(&self, _: &LogQuery) -> Result<Vec<LogInfo>, String> {
-                Ok(self.logs.lock().unwrap().clone())
-            }
-        }
-
         let logger = Logger::new(Some(
             LoggerOptions::new()
                 .level("trace")
                 .format(logform::passthrough()),
         ));
-        let transport = Arc::new(LeveledTransport {
-            logs: Arc::new(Mutex::new(Vec::new())),
-        });
-        let transport = LoggerTransport::new(transport).with_level("error".to_string());
-        logger.add_logger_transport(transport);
+
+        let transport = TestTransport::new();
+
+        // Add transport with custom error-only level
+        let _handle = logger
+            .transport(transport.clone())
+            .with_level("error")
+            .add();
 
         logger.log(LogInfo::new("info", "Filtered by transport"));
         logger.log(LogInfo::new("error", "Passes transport filter"));
         logger.flush().unwrap();
 
-        let query = LogQuery::new();
-        let logs = logger.query(&query).unwrap();
-
+        let logs = transport.get_logs();
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].level, "error");
         assert_eq!(logs[0].message, "Passes transport filter");
@@ -789,7 +858,7 @@ mod tests {
     #[test]
     fn test_empty_message_handling() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("info", ""));
@@ -803,7 +872,7 @@ mod tests {
     #[test]
     fn test_configure_updates_level() {
         let logger = Logger::new(Some(LoggerOptions::new().level("error")));
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("warn", "Should be filtered"));
@@ -822,8 +891,7 @@ mod tests {
     #[test]
     fn test_configure_clears_transports() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
-        logger.add_transport(transport.clone());
+        logger.add_transport(TestTransport::new());
 
         let state = logger.shared_state.read();
         assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
@@ -844,7 +912,7 @@ mod tests {
     #[test]
     fn test_flush_with_transport() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("info", "Test"));
@@ -855,7 +923,7 @@ mod tests {
     #[test]
     fn test_close_flushes_logs() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         logger.log(LogInfo::new("info", "Test"));
@@ -889,7 +957,7 @@ mod tests {
         drop(state);
 
         // Add transport
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport.clone());
 
         // Log another message - should process buffer + new message
@@ -905,7 +973,7 @@ mod tests {
     #[test]
     fn test_query_returns_results() {
         let logger = Logger::new(None);
-        let transport = Arc::new(TestTransport::new());
+        let transport = TestTransport::new();
         logger.add_transport(transport);
 
         logger.log(LogInfo::new("info", "Test message"));
@@ -925,5 +993,35 @@ mod tests {
         assert!(min_sev.is_some());
         // warn should have higher severity value than info
         assert!(min_sev.unwrap() > 0);
+    }
+
+    #[test]
+    fn test_multiple_handles_different_transports() {
+        let logger = Logger::new(None);
+
+        let transport1 = TestTransport::new();
+        let transport2 = TestTransport::new();
+
+        let handle1 = logger.add_transport(transport1.clone());
+        let handle2 = logger.add_transport(transport2.clone());
+
+        logger.log(LogInfo::new("info", "Test"));
+        logger.flush().unwrap();
+
+        assert_eq!(transport1.get_logs().len(), 1);
+        assert_eq!(transport2.get_logs().len(), 1);
+
+        // Remove first transport
+        assert!(logger.remove_transport(handle1));
+
+        logger.log(LogInfo::new("info", "Test2"));
+        logger.flush().unwrap();
+
+        // Only second transport should have the new log
+        assert_eq!(transport1.get_logs().len(), 1);
+        assert_eq!(transport2.get_logs().len(), 2);
+
+        // Remove second transport
+        assert!(logger.remove_transport(handle2));
     }
 }

@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use logform::{Format, LogInfo};
-use winston_transport::{LogQuery, Transport};
+use winston_transport::Transport;
 
 #[derive(Clone)]
 pub struct LoggerTransport<L> {

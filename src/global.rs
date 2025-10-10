@@ -1,6 +1,6 @@
-use crate::Logger;
+use crate::{logger::TransportHandle, Logger};
 use logform::LogInfo;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use winston_transport::Transport;
 
 static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
@@ -80,12 +80,18 @@ pub fn query(options: &winston_transport::LogQuery) -> Result<Vec<logform::LogIn
     global_logger().query(options)
 }
 
-pub fn add_transport(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
+/// Add a transport to the global logger and return a handle for later removal.
+pub fn add_transport<T>(transport: T) -> TransportHandle
+where
+    T: Transport<LogInfo> + Send + Sync + 'static,
+{
     global_logger().add_transport(transport)
 }
 
-pub fn remove_transport(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> bool {
-    global_logger().remove_transport(transport)
+/// Remove a transport by its handle.
+/// Returns `true` if the transport was found and removed, `false` otherwise.
+pub fn remove_transport(handle: TransportHandle) -> bool {
+    global_logger().remove_transport(handle)
 }
 
 /// Register the global logger with the `log` crate.

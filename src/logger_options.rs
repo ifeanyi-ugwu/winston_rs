@@ -1,4 +1,6 @@
-use crate::{logger_levels::LoggerLevels, logger_transport::LoggerTransport};
+use crate::{
+    logger::TransportHandle, logger_levels::LoggerLevels, logger_transport::LoggerTransport,
+};
 use logform::{json, Format, LogInfo};
 use std::{collections::HashMap, sync::Arc};
 use winston_transport::Transport;
@@ -8,7 +10,7 @@ pub struct LoggerOptions {
     pub levels: Option<LoggerLevels>,
     pub format: Option<Arc<dyn Format<Input = LogInfo> + Send + Sync>>,
     pub level: Option<String>,
-    pub transports: Option<Vec<LoggerTransport<LogInfo>>>,
+    pub transports: Option<Vec<(TransportHandle, LoggerTransport<LogInfo>)>>,
     pub channel_capacity: Option<usize>,
     pub backpressure_strategy: Option<BackpressureStrategy>,
 }
@@ -54,10 +56,11 @@ impl LoggerOptions {
     pub fn add_transport(mut self, transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
         self.transports
             .get_or_insert_with(Vec::new)
-            .push(LoggerTransport::new(transport));
+            .push((TransportHandle::new(), LoggerTransport::new(transport)));
         self
     }
 
+    /// Set multiple transports at once
     pub fn transports(
         mut self,
         transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
@@ -65,7 +68,7 @@ impl LoggerOptions {
         self.transports = Some(
             transports
                 .into_iter()
-                .map(|t| LoggerTransport::new(t))
+                .map(|t| (TransportHandle::new(), LoggerTransport::new(t)))
                 .collect(),
         );
         self
