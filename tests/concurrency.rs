@@ -166,7 +166,6 @@ fn test_flush_waits_for_processing() {
 }
 
 #[test]
-#[ignore = "test hangs"]
 fn test_close_from_multiple_threads() {
     let logger = Arc::new(Logger::builder().transport(MockTransport::new()).build());
 

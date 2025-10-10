@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use std::{
     collections::VecDeque,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc, Condvar, Mutex,
     },
     thread,
@@ -89,6 +89,7 @@ pub struct Logger {
     receiver: Arc<Receiver<LogMessage>>,
     pub(crate) shared_state: Arc<RwLock<SharedState>>,
     flush_complete: Arc<(Mutex<bool>, Condvar)>,
+    is_closed: AtomicBool,
 }
 
 impl Logger {
@@ -122,6 +123,7 @@ impl Logger {
             shared_state,
             receiver: shared_receiver,
             flush_complete,
+            is_closed: AtomicBool::new(false),
         }
     }
 
@@ -385,6 +387,10 @@ impl Logger {
     }
 
     pub fn close(&self) {
+        if self.is_closed.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
         if let Err(e) = self.flush() {
             eprintln!("Error flushing logs: {}", e);
         }
@@ -403,21 +409,18 @@ impl Logger {
     }
 
     pub fn flush(&self) -> Result<(), String> {
-        // Check if worker thread is still alive
-        if let Ok(thread_handle) = self.worker_thread.lock() {
-            if thread_handle.is_none() {
-                // Already closed, nothing to flush
-                return Ok(());
-            }
+        if self.is_closed.load(Ordering::Acquire) {
+            return Ok(());
         }
 
         let (lock, cvar) = &*self.flush_complete;
         let mut completed = lock.lock().unwrap();
         *completed = false;
 
-        self.sender
-            .send(LogMessage::Flush)
-            .map_err(|e| e.to_string())?;
+        // If send fails, worker is gone
+        if self.sender.send(LogMessage::Flush).is_err() {
+            return Ok(());
+        }
 
         while !*completed {
             completed = cvar.wait(completed).unwrap();
