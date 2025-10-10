@@ -14,13 +14,12 @@ Winston provides structured logging with composable transports, formats, and lev
 ### Simple Console Logging
 
 ```rust
-use std::sync::Arc;
-use winston::{log, Logger, transports::stdout, LoggerOptions};
+use winston::{log, Logger, transports::stdout};
 
 fn main() {
     let logger = Logger::builder()
         .level("info")
-        .add_transport(Arc::new(stdout()))
+        .transport(stdout())
         .build();
 
     winston::init(logger);
@@ -35,15 +34,14 @@ fn main() {
 ### Multi-Transport Logger
 
 ```rust
-use std::sync::Arc;
 use winston::{Logger, log, format::{timestamp, json, chain}, transports::{stdout, File}};
 
 fn main() {
     let logger = Logger::builder()
         .level("debug")
         .format(chain!(timestamp(), json()))
-        .add_transport(Arc::new(stdout()))
-        .add_transport(Arc::new(File::builder().filename("app.log").build()))
+        .transport(stdout())
+        .transport(File::builder().filename("app.log").build())
         .build();
 
     log!(logger, info, "Logging to console and file");
@@ -86,15 +84,23 @@ pub trait Transport: Send + Sync {
 **Multiple transports example:**
 
 ```rust
-use std::sync::Arc;
-
 let logger = Logger::builder()
-    .add_transport(Arc::new(stdout().with_level("info")))    // Console: info+
-    .add_transport(Arc::new(File::builder()                  // File: debug+
+    .transport(stdout())              // Console: uses logger's level
+    .transport(File::builder()         // File: custom level
         .filename("app.log")
         .level("debug")
-        .build()))
+        .build())
     .build();
+
+// Or use the fluent builder for custom configuration per transport
+let logger = Logger::new(None);
+logger.transport(stdout())
+    .with_level("info")
+    .add();
+
+logger.transport(File::builder().filename("app.log").build())
+    .with_level("debug")
+    .add();
 ```
 
 ### Levels - Message Priority
@@ -149,25 +155,26 @@ let logger = Logger::builder()
 **Per-transport formatting:**
 
 ```rust
-use std::sync::Arc;
-
 let logger = Logger::builder()
-    .add_transport(Arc::new(
-        stdout().with_format(
-            timestamp()
-                .with_format("%H:%M:%S")
-                .chain(colorize())
-        )
-    ))  // Colorized console with timestamps
-    .add_transport(Arc::new(File::builder()
-        .filename("app.log")
-        .format(
-            timestamp()
-                .with_format("%Y-%m-%d %H:%M:%S")
-                .chain(json())
-        )  // Structured file logs with full timestamps
-        .build()))
+    .transport(stdout())  // Uses logger's global format
     .build();
+
+// Or configure per-transport
+let logger = Logger::new(None);
+
+logger.transport(stdout())
+    .with_format(chain!(
+        timestamp().with_format("%H:%M:%S"),
+        colorize()
+    ))
+    .add();
+
+logger.transport(File::builder().filename("app.log").build())
+    .with_format(chain!(
+        timestamp().with_format("%Y-%m-%d %H:%M:%S"),
+        json()
+    ))
+    .add();
 ```
 
 ## Advanced Features
@@ -200,6 +207,24 @@ winston::create_level_macros!(critical, high, medium, low);
 // Now you can use:
 logger.critical("System failure", None);
 high!(logger, "Priority task failed", retries = 3);
+```
+
+### Dynamic Transport Management
+
+Add and remove transports at runtime:
+
+```rust
+let logger = Logger::new(None);
+
+// Add transports and get handles
+let console_handle = logger.add_transport(stdout());
+let file_handle = logger.transport(File::builder().filename("app.log").build())
+    .with_level("debug")
+    .add();
+
+// Later, remove specific transports
+logger.remove_transport(console_handle);  // Stop console logging
+logger.remove_transport(file_handle);     // Stop file logging
 ```
 
 ### Backpressure Management
@@ -252,12 +277,10 @@ let results = logger.query(query)?;
 Change logger settings dynamically:
 
 ```rust
-use std::sync::Arc;
-
 logger.configure(
     LoggerOptions::new()
         .level("debug")
-        .add_transport(Arc::new(File::builder().filename("debug.log").build()))
+        .transport(File::builder().filename("debug.log").build())
 );
 ```
 
@@ -292,12 +315,11 @@ impl Transport for DatabaseTransport {
 Convenient for application-wide logging:
 
 ```rust
-use std::sync::Arc;
 use winston::{Logger, log, transports::stdout};
 
 fn main() {
     let logger = Logger::builder()
-        .add_transport(Arc::new(stdout()))
+        .transport(stdout())
         .build();
 
     winston::init(logger);
@@ -312,10 +334,8 @@ fn main() {
 Better for libraries or multi-tenant applications:
 
 ```rust
-use std::sync::Arc;
-
 let logger = Logger::builder()
-    .add_transport(Arc::new(stdout()))
+    .transport(stdout())
     .build();
 
 log!(logger, info, "Using specific logger instance");
@@ -345,13 +365,12 @@ winston = { version = "0.5", features = ["log-backend"] }
 Then initialize Winston as the global logger:
 
 ```rust
-use std::sync::Arc;
 use winston::{Logger, transports::stdout};
 
 fn main() {
     // Initialize winston
     let logger = Logger::builder()
-        .add_transport(Arc::new(stdout()))
+        .transport(stdout())
         .build();
 
     winston::init(logger);
