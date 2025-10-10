@@ -1097,4 +1097,14 @@ mod tests {
 
         assert!(logger.remove_transport(handle));
     }
+
+    #[test]
+    fn test_builder_transports_accepts_iterable() {
+        let logger = Logger::builder()
+            .transports(vec![TestTransport::new(), TestTransport::new()])
+            .build();
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.transports.as_ref().unwrap().len(), 2);
+    }
 }
