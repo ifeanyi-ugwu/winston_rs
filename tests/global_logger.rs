@@ -43,7 +43,7 @@ fn test_global_add_transport() {
     }
 
     let transport = MockTransport::new();
-    //assert!(winston::add_transport(transport.clone()));
+    winston::add_transport(transport.clone());
 
     winston::log(LogInfo::new("info", "Test"));
     winston::flush().unwrap();
