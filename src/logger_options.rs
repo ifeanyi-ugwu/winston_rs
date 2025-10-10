@@ -46,13 +46,18 @@ impl LoggerOptions {
 
     /// Adds a single transport to the existing list of transports.
     ///
-    /// This method adds the provided transport to the existing list of transports,
-    /// keeping any previously added transports intact. The transport is automatically
-    /// wrapped in an `Arc` to ensure it is thread-safe.
+    /// This method is additive - it appends the provided transport to any previously
+    /// added transports. The transport is automatically wrapped in an `Arc` and
+    /// assigned a unique `TransportHandle`.
     ///
-    /// # Arguments
+    /// # Example
+    /// ```ignore
+    /// use winston::LoggerOptions;
     ///
-    /// * `transport` - A single transport to be added to the current list.
+    /// let options = LoggerOptions::new()
+    ///     .transport(ConsoleTransport::new())
+    ///     .transport(FileTransport::new("app.log"));
+    /// ```
     pub fn transport(mut self, transport: impl Transport<LogInfo> + Send + Sync + 'static) -> Self {
         self.transports.get_or_insert_with(Vec::new).push((
             TransportHandle::new(),
@@ -61,7 +66,23 @@ impl LoggerOptions {
         self
     }
 
-    /// Set multiple transports at once
+    /// Replaces all transports with the provided collection.
+    ///
+    /// This method is **not** additive - it replaces any previously configured
+    /// transports. Each transport must already be wrapped in an `Arc` and will
+    /// be assigned a unique `TransportHandle`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use winston_rs::LoggerOptions;
+    /// use std::sync::Arc;
+    ///
+    /// let transports = vec![
+    ///     Arc::new(stdout()),
+    ///     Arc::new(FileTransport::new("app.log")),
+    /// ];
+    /// let options = LoggerOptions::new().transports(transports);
+    /// ```
     pub fn transports(
         mut self,
         transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
