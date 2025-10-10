@@ -17,7 +17,7 @@ static GLOBAL_LOGGER: OnceLock<Logger> = OnceLock::new();
 ///
 /// // Create and configure logger
 /// let mut logger = Logger::new(None);
-/// logger.add_transport(Arc::new(stdout()));
+/// logger.add_transport(stdout());
 ///
 /// // Make it global
 /// winston::init(logger);

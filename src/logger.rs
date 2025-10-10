@@ -488,10 +488,10 @@ impl Logger {
     /// level and format, then call `.add()` to add it to the logger.
     ///
     /// # Example
-    /// ```
-    /// let handle = logger.transport(ConsoleTransport::new())
+    /// ```ignore
+    /// let handle = logger.transport(stdout())
     ///     .with_level("error")
-    ///     .with_format(json_format())
+    ///     .with_format(json())
     ///     .add();
     /// ```
     pub fn transport<T>(&self, transport: T) -> TransportBuilder<T>
@@ -510,8 +510,8 @@ impl Logger {
     /// Returns a handle that can be used to remove the transport later.
     ///
     /// # Example
-    /// ```
-    /// let handle = logger.add_transport(ConsoleTransport::new());
+    /// ```ignore
+    /// let handle = logger.add_transport(stdout());
     /// // Later...
     /// logger.remove_transport(handle);
     /// ```
