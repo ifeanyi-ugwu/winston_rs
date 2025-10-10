@@ -59,3 +59,24 @@ impl From<Arc<dyn Transport<LogInfo> + Send + Sync>> for LoggerTransport<LogInfo
         LoggerTransport::new(transport)
     }
 }
+
+pub trait IntoLoggerTransport {
+    fn into_logger_transport(self) -> LoggerTransport<LogInfo>;
+}
+
+// Raw transport
+impl<T> IntoLoggerTransport for T
+where
+    T: Transport<LogInfo> + Send + Sync + 'static,
+{
+    fn into_logger_transport(self) -> LoggerTransport<LogInfo> {
+        LoggerTransport::new(Arc::new(self))
+    }
+}
+
+// Pre-configured LoggerTransport
+impl IntoLoggerTransport for LoggerTransport<LogInfo> {
+    fn into_logger_transport(self) -> LoggerTransport<LogInfo> {
+        self
+    }
+}

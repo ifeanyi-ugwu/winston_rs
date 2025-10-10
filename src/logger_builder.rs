@@ -1,5 +1,6 @@
 use crate::{
     logger_options::{BackpressureStrategy, LoggerOptions},
+    logger_transport::IntoLoggerTransport,
     Logger,
 };
 use logform::{Format, LogInfo};
@@ -30,7 +31,7 @@ impl LoggerBuilder {
         self
     }
 
-    pub fn transport(mut self, transport: impl Transport<LogInfo> + Send + Sync + 'static) -> Self {
+    pub fn transport(mut self, transport: impl IntoLoggerTransport) -> Self {
         self.options = self.options.transport(transport);
         self
     }

@@ -1,7 +1,7 @@
 use crate::{
     logger_builder::LoggerBuilder,
     logger_options::{BackpressureStrategy, LoggerOptions},
-    logger_transport::LoggerTransport,
+    logger_transport::{IntoLoggerTransport, LoggerTransport},
 };
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use logform::LogInfo;
@@ -507,19 +507,35 @@ impl Logger {
     }
 
     /// Convenience method: add a transport directly without configuration.
+    ///
+    /// Accepts either a raw transport or a pre-configured `LoggerTransport`.
     /// Returns a handle that can be used to remove the transport later.
     ///
     /// # Example
     /// ```ignore
+    /// // Raw transport
     /// let handle = logger.add_transport(stdout());
+    ///
+    /// // Pre-configured transport
+    /// let configured = LoggerTransport::new(Arc::new(stdout()))
+    ///     .with_level("error");
+    /// let handle = logger.add_transport(configured);
+    ///
     /// // Later...
     /// logger.remove_transport(handle);
     /// ```
-    pub fn add_transport<T>(&self, transport: T) -> TransportHandle
-    where
-        T: Transport<LogInfo> + Send + Sync + 'static,
-    {
-        self.transport(transport).add()
+    pub fn add_transport(&self, transport: impl IntoLoggerTransport) -> TransportHandle {
+        let handle = TransportHandle::new();
+        let logger_transport = transport.into_logger_transport();
+
+        let mut state = self.shared_state.write();
+        if let Some(transports) = &mut state.options.transports {
+            transports.push((handle, logger_transport));
+        } else {
+            state.options.transports = Some(vec![(handle, logger_transport)]);
+        }
+
+        handle
     }
 
     /// Remove a transport by its handle.
@@ -1025,5 +1041,77 @@ mod tests {
 
         // Remove second transport
         assert!(logger.remove_transport(handle2));
+    }
+
+    #[test]
+    fn test_transport_accepts_raw_transport() {
+        let logger = Logger::builder().transport(TestTransport::new()).build();
+
+        let state = logger.shared_state.read();
+        assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_transport_accepts_preconfigured_logger_transport() {
+        let transport = TestTransport::new();
+
+        // Pre-configure a LoggerTransport with level and format
+        let configured = LoggerTransport::new(Arc::new(transport.clone()))
+            .with_level("error".to_owned())
+            .with_format(Arc::new(logform::passthrough()));
+
+        let logger = Logger::builder()
+            .transport(configured) // Pre-configured LoggerTransport
+            .build();
+
+        logger.log(LogInfo::new("info", "Should be filtered"));
+        logger.log(LogInfo::new("error", "Should pass"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].level, "error");
+        assert_eq!(logs[0].message, "Should pass");
+    }
+
+    #[test]
+    fn test_add_transport_with_raw_transport() {
+        let logger = Logger::new(None);
+        let transport = TestTransport::new();
+
+        let handle = logger.add_transport(transport.clone());
+
+        {
+            let state = logger.shared_state.read();
+            assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+        }
+
+        logger.log(LogInfo::new("info", "Test"));
+        logger.flush().unwrap();
+
+        assert_eq!(transport.get_logs().len(), 1);
+        assert!(logger.remove_transport(handle));
+    }
+
+    #[test]
+    fn test_add_transport_with_preconfigured_logger_transport() {
+        let logger = Logger::new(None);
+        let transport = TestTransport::new();
+
+        // Pre-configure with custom level
+        let configured =
+            LoggerTransport::new(Arc::new(transport.clone())).with_level("error".to_owned());
+
+        let handle = logger.add_transport(configured);
+
+        logger.log(LogInfo::new("info", "Should be filtered"));
+        logger.log(LogInfo::new("error", "Should pass"));
+        logger.flush().unwrap();
+
+        let logs = transport.get_logs();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].level, "error");
+
+        assert!(logger.remove_transport(handle));
     }
 }

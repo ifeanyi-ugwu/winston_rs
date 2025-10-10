@@ -1,5 +1,7 @@
 use crate::{
-    logger::TransportHandle, logger_levels::LoggerLevels, logger_transport::LoggerTransport,
+    logger::TransportHandle,
+    logger_levels::LoggerLevels,
+    logger_transport::{IntoLoggerTransport, LoggerTransport},
 };
 use logform::{json, Format, LogInfo};
 use std::{collections::HashMap, sync::Arc};
@@ -58,11 +60,42 @@ impl LoggerOptions {
     ///     .transport(ConsoleTransport::new())
     ///     .transport(FileTransport::new("app.log"));
     /// ```
-    pub fn transport(mut self, transport: impl Transport<LogInfo> + Send + Sync + 'static) -> Self {
+    pub fn transporti(
+        mut self,
+        transport: impl Transport<LogInfo> + Send + Sync + 'static,
+    ) -> Self {
         self.transports.get_or_insert_with(Vec::new).push((
             TransportHandle::new(),
             LoggerTransport::new(Arc::new(transport)),
         ));
+        self
+    }
+
+    /// Adds a single transport to the existing list of transports.
+    ///
+    /// Accepts either a raw transport or a pre-configured `LoggerTransport`.
+    /// The transport is automatically wrapped and assigned a unique `TransportHandle`.
+    ///
+    /// # Example
+    /// ```
+    /// use winston_rs::LoggerOptions;
+    ///
+    /// // Raw transport
+    /// let options = LoggerOptions::new()
+    ///     .transport(ConsoleTransport::new());
+    ///
+    /// // Pre-configured transport
+    /// let options = LoggerOptions::new()
+    ///     .transport(
+    ///         LoggerTransport::new(Arc::new(FileTransport::new("app.log")))
+    ///             .with_level("debug")
+    ///             .with_format(json())
+    ///     );
+    /// ```
+    pub fn transport(mut self, transport: impl IntoLoggerTransport) -> Self {
+        self.transports
+            .get_or_insert_with(Vec::new)
+            .push((TransportHandle::new(), transport.into_logger_transport()));
         self
     }
 
@@ -79,6 +112,36 @@ impl LoggerOptions {
     ///
     /// let transports = vec![
     ///     Arc::new(stdout()),
+    ///     Arc::new(FileTransport::new("app.log")),
+    /// ];
+    /// let options = LoggerOptions::new().transports(transports);
+    /// ```
+    pub fn transportsi(
+        mut self,
+        transports: Vec<Arc<dyn Transport<LogInfo> + Send + Sync>>,
+    ) -> Self {
+        self.transports = Some(
+            transports
+                .into_iter()
+                .map(|t| (TransportHandle::new(), LoggerTransport::new(t)))
+                .collect(),
+        );
+        self
+    }
+
+    /// Replaces all transports with the provided collection.
+    ///
+    /// This method is **not** additive - it replaces any previously configured
+    /// transports. Each transport must already be wrapped in an `Arc` and will
+    /// be assigned a unique `TransportHandle`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use winston_rs::LoggerOptions;
+    /// use std::sync::Arc;
+    ///
+    /// let transports = vec![
+    ///     Arc::new(ConsoleTransport::new()),
     ///     Arc::new(FileTransport::new("app.log")),
     /// ];
     /// let options = LoggerOptions::new().transports(transports);
