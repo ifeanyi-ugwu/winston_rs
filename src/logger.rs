@@ -726,8 +726,10 @@ mod tests {
 
         let handle = logger.add_transport(transport);
 
-        let state = logger.shared_state.read();
-        assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+        {
+            let state = logger.shared_state.read();
+            assert_eq!(state.options.transports.as_ref().unwrap().len(), 1);
+        }
 
         // Verify the handle works
         assert!(logger.remove_transport(handle));
