@@ -64,10 +64,9 @@ impl LoggerOptions {
         mut self,
         transport: impl Transport<LogInfo> + Send + Sync + 'static,
     ) -> Self {
-        self.transports.get_or_insert_with(Vec::new).push((
-            TransportHandle::new(),
-            LoggerTransport::new(Arc::new(transport)),
-        ));
+        self.transports
+            .get_or_insert_with(Vec::new)
+            .push((TransportHandle::new(), LoggerTransport::new(transport)));
         self
     }
 
@@ -99,7 +98,7 @@ impl LoggerOptions {
         self
     }
 
-    /// Replaces all transports with the provided collection.
+    /*/// Replaces all transports with the provided collection.
     ///
     /// This method is **not** additive - it replaces any previously configured
     /// transports. Each transport must already be wrapped in an `Arc` and will
@@ -127,7 +126,7 @@ impl LoggerOptions {
                 .collect(),
         );
         self
-    }
+    }*/
 
     /// Replaces all transports with the provided collection.
     ///

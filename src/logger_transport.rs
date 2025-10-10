@@ -11,27 +11,34 @@ pub struct LoggerTransport<L> {
 }
 
 impl<L> LoggerTransport<L> {
-    pub fn new(transport: Arc<dyn Transport<L> + Send + Sync>) -> Self {
+    pub fn new<T>(transport: T) -> Self
+    where
+        T: Transport<L> + Send + Sync + 'static,
+    {
         Self {
-            transport,
+            transport: Arc::new(transport),
             level: None,
             format: None,
         }
     }
 
-    pub fn with_level(mut self, level: String) -> Self {
-        self.level = Some(level);
+    pub fn with_level(mut self, level: impl Into<String>) -> Self {
+        self.level = Some(level.into());
         self
     }
 
-    pub fn with_format(mut self, format: Arc<dyn Format<Input = L> + Send + Sync>) -> Self {
-        self.format = Some(format);
+    pub fn with_format<F>(mut self, format: F) -> Self
+    where
+        F: Format<Input = L> + Send + Sync + 'static,
+    {
+        self.format = Some(Arc::new(format));
         self
     }
 
     pub fn get_level(&self) -> Option<&String> {
         self.level.as_ref()
     }
+
     pub fn get_format(&self) -> Option<Arc<dyn Format<Input = L> + Send + Sync>> {
         self.format.clone()
     }
@@ -54,12 +61,6 @@ impl<L> fmt::Debug for LoggerTransport<L> {
     }
 }
 
-impl From<Arc<dyn Transport<LogInfo> + Send + Sync>> for LoggerTransport<LogInfo> {
-    fn from(transport: Arc<dyn Transport<LogInfo> + Send + Sync>) -> Self {
-        LoggerTransport::new(transport)
-    }
-}
-
 pub trait IntoLoggerTransport {
     fn into_logger_transport(self) -> LoggerTransport<LogInfo>;
 }
@@ -70,7 +71,7 @@ where
     T: Transport<LogInfo> + Send + Sync + 'static,
 {
     fn into_logger_transport(self) -> LoggerTransport<LogInfo> {
-        LoggerTransport::new(Arc::new(self))
+        LoggerTransport::new(self)
     }
 }
 

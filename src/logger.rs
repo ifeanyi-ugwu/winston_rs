@@ -59,14 +59,13 @@ where
     /// Consume the builder and add the transport to the logger, returning a handle
     pub fn add(self) -> TransportHandle {
         let handle = TransportHandle::new();
-        let arc_transport = Arc::new(self.transport);
 
-        let mut logger_transport = LoggerTransport::new(arc_transport);
+        let mut logger_transport = LoggerTransport::new(self.transport);
         if let Some(lvl) = self.level {
             logger_transport = logger_transport.with_level(lvl);
         }
         if let Some(fmt) = self.format {
-            logger_transport = logger_transport.with_format(fmt);
+            //logger_transport = logger_transport.with_format(fmt); //TODO: fix or leverage the logger transport directly
         }
 
         let mut state = self.logger.shared_state.write();
@@ -1056,9 +1055,9 @@ mod tests {
         let transport = TestTransport::new();
 
         // Pre-configure a LoggerTransport with level and format
-        let configured = LoggerTransport::new(Arc::new(transport.clone()))
+        let configured = LoggerTransport::new(transport.clone())
             .with_level("error".to_owned())
-            .with_format(Arc::new(logform::passthrough()));
+            .with_format(logform::passthrough());
 
         let logger = Logger::builder()
             .transport(configured) // Pre-configured LoggerTransport
@@ -1099,8 +1098,7 @@ mod tests {
         let transport = TestTransport::new();
 
         // Pre-configure with custom level
-        let configured =
-            LoggerTransport::new(Arc::new(transport.clone())).with_level("error".to_owned());
+        let configured = LoggerTransport::new(transport.clone()).with_level("error".to_owned());
 
         let handle = logger.add_transport(configured);
 
