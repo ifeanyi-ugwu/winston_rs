@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use logform::LogInfo;
 use winston::Logger;
 
 fn benchmark_logging(c: &mut Criterion) {
     let logger = Logger::builder()
-        .add_transport(Arc::new(winston::transports::stdout()))
+        .add_transport(winston::transports::stdout())
         .build();
 
     c.bench_function("log_message", |b| {
@@ -30,7 +28,7 @@ fn benchmark_logging(c: &mut Criterion) {
         .build();
 
     let logger = Logger::builder()
-        //.add_transport(Arc::new(file_transport)) //TODO: uncomment when the file transport is updated
+        //.add_transport(file_transport) //TODO: uncomment when the file transport is updated
         .build();
 
     c.bench_function("log_message_to_file", |b| {
