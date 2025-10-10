@@ -3,7 +3,6 @@ mod common;
 use common::MockTransport;
 use logform::LogInfo;
 use serial_test::serial;
-use std::sync::Arc;
 use winston::Logger;
 
 #[test]
