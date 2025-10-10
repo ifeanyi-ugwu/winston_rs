@@ -27,9 +27,7 @@ fn benchmark_logging(c: &mut Criterion) {
         .filename(&filename)
         .build();
 
-    let logger = Logger::builder()
-        //.add_transport(file_transport) //TODO: uncomment when the file transport is updated
-        .build();
+    let logger = Logger::builder().add_transport(file_transport).build();
 
     c.bench_function("log_message_to_file", |b| {
         b.iter(|| {
