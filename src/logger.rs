@@ -30,20 +30,15 @@ impl TransportHandle {
 }
 
 /// Builder for configuring a transport before adding it to the logger
-pub struct TransportBuilder<'a, T> {
+pub struct TransportBuilder<'a> {
     logger: &'a Logger,
-    transport: T,
-    level: Option<String>,
-    format: Option<Arc<dyn logform::Format<Input = LogInfo> + Send + Sync>>,
+    logger_transport: LoggerTransport<LogInfo>,
 }
 
-impl<'a, T> TransportBuilder<'a, T>
-where
-    T: Transport<LogInfo> + Send + Sync + 'static,
-{
+impl<'a> TransportBuilder<'a> {
     /// Set a custom log level for this transport
     pub fn with_level(mut self, level: impl Into<String>) -> Self {
-        self.level = Some(level.into());
+        self.logger_transport = self.logger_transport.with_level(level);
         self
     }
 
@@ -52,7 +47,7 @@ where
     where
         F: logform::Format<Input = LogInfo> + Send + Sync + 'static,
     {
-        self.format = Some(Arc::new(format));
+        self.logger_transport = self.logger_transport.with_format(format);
         self
     }
 
@@ -60,19 +55,11 @@ where
     pub fn add(self) -> TransportHandle {
         let handle = TransportHandle::new();
 
-        let mut logger_transport = LoggerTransport::new(self.transport);
-        if let Some(lvl) = self.level {
-            logger_transport = logger_transport.with_level(lvl);
-        }
-        if let Some(fmt) = self.format {
-            //logger_transport = logger_transport.with_format(fmt); //TODO: fix or leverage the logger transport directly
-        }
-
         let mut state = self.logger.shared_state.write();
         if let Some(transports) = &mut state.options.transports {
-            transports.push((handle, logger_transport));
+            transports.push((handle, self.logger_transport));
         } else {
-            state.options.transports = Some(vec![(handle, logger_transport)]);
+            state.options.transports = Some(vec![(handle, self.logger_transport)]);
         }
 
         handle
@@ -493,15 +480,13 @@ impl Logger {
     ///     .with_format(json())
     ///     .add();
     /// ```
-    pub fn transport<T>(&self, transport: T) -> TransportBuilder<T>
-    where
-        T: Transport<LogInfo> + Send + Sync + 'static,
-    {
+    pub fn transport(
+        &self,
+        transport: impl Transport<LogInfo> + Send + Sync + 'static,
+    ) -> TransportBuilder {
         TransportBuilder {
             logger: self,
-            transport,
-            level: None,
-            format: None,
+            logger_transport: LoggerTransport::new(transport),
         }
     }
 
