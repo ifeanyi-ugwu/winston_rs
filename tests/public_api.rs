@@ -126,10 +126,12 @@ fn test_remove_transport_at_runtime() {
 }
 
 #[test]
-#[ignore = "test fails"]
 fn test_configure_updates_logger() {
     let transport = MockTransport::new();
-    let logger = Logger::builder().level("error").build();
+    let logger = Logger::builder()
+        .level("error")
+        .transport(transport.clone())
+        .build();
 
     log!(logger, warn, "Should be filtered");
     wait_for_logs(&logger);
