@@ -16,4 +16,5 @@ pub use global::{
 pub use logform as format;
 pub use logger::Logger;
 pub use logger_options::{BackpressureStrategy, LoggerOptions};
+pub use logger_transport::LoggerTransport;
 pub use winston_transport::LogQuery;
