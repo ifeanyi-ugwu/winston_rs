@@ -77,7 +77,6 @@ pub enum LogMessage {
 #[derive(Debug)]
 pub(crate) struct SharedState {
     pub(crate) options: LoggerOptions,
-    buffer: VecDeque<Arc<LogInfo>>,
     // Cache the minimum severity needed for any transport to accept a log
     min_required_severity: Option<u8>,
 }
@@ -88,6 +87,7 @@ pub struct Logger {
     sender: Sender<LogMessage>,
     receiver: Arc<Receiver<LogMessage>>,
     pub(crate) shared_state: Arc<RwLock<SharedState>>,
+    buffer: Arc<Mutex<VecDeque<Arc<LogInfo>>>>,
     flush_complete: Arc<(Mutex<bool>, Condvar)>,
     is_closed: AtomicBool,
 }
@@ -104,23 +104,31 @@ impl Logger {
         let min_required_severity = Self::compute_min_severity(&options);
         let shared_state = Arc::new(RwLock::new(SharedState {
             options,
-            buffer: VecDeque::new(),
             min_required_severity,
         }));
 
+        let buffer = Arc::new(Mutex::new(VecDeque::new()));
+
         let worker_receiver = Arc::clone(&shared_receiver);
         let worker_shared_state = Arc::clone(&shared_state);
+        let worker_buffer = Arc::clone(&buffer);
         let worker_flush_complete = Arc::clone(&flush_complete);
 
         // Spawn a worker thread to handle logging
         let worker_thread = thread::spawn(move || {
-            Self::worker_loop(worker_receiver, worker_shared_state, worker_flush_complete);
+            Self::worker_loop(
+                worker_receiver,
+                worker_shared_state,
+                worker_buffer,
+                worker_flush_complete,
+            );
         });
 
         Logger {
             worker_thread: Mutex::new(Some(worker_thread)),
             sender,
             shared_state,
+            buffer,
             receiver: shared_receiver,
             flush_complete,
             is_closed: AtomicBool::new(false),
@@ -159,22 +167,36 @@ impl Logger {
     fn worker_loop(
         receiver: Arc<Receiver<LogMessage>>,
         shared_state: Arc<RwLock<SharedState>>,
+        buffer: Arc<Mutex<VecDeque<Arc<LogInfo>>>>,
         flush_complete: Arc<(Mutex<bool>, Condvar)>,
     ) {
         for message in receiver.iter() {
             match message {
                 LogMessage::Entry(entry) => {
-                    let mut state = shared_state.write();
-                    if state
-                        .options
-                        .transports
-                        .as_ref()
-                        .map_or(true, |t| t.is_empty())
-                    {
-                        state.buffer.push_back(Arc::clone(&entry));
-                        eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
+                    // Use read lock to check if we have transports (allows parallelism)
+                    let has_transports = {
+                        let state = shared_state.read();
+                        state
+                            .options
+                            .transports
+                            .as_ref()
+                            .map_or(false, |t| !t.is_empty())
+                    };
+
+                    if !has_transports {
+                        // Only buffer lock needed here
+                        let mut buf = buffer.lock().unwrap();
+                        buf.push_back(Arc::clone(&entry));
+                        eprintln!(
+                            "[winston] Attempt to write logs with no transports, which can increase memory usage: {}",
+                            entry.message
+                        );
                     } else {
-                        Self::process_buffered_entries(&mut state);
+                        // Process any buffered entries first
+                        Self::process_buffered_entries(&shared_state, &buffer);
+
+                        // Process current entry with read lock (allows parallel processing)
+                        let state = shared_state.read();
                         Self::process_entry(&entry, &state);
                     }
                 }
@@ -195,16 +217,17 @@ impl Logger {
                     }
 
                     Self::refresh_effective_levels(&mut state);
+                    drop(state); // Release write lock before processing buffer
+
                     // Process buffered entries with new configuration
-                    Self::process_buffered_entries(&mut state);
+                    Self::process_buffered_entries(&shared_state, &buffer);
                 }
                 LogMessage::Shutdown => {
-                    let mut state = shared_state.write();
-                    Self::process_buffered_entries(&mut state);
+                    Self::process_buffered_entries(&shared_state, &buffer);
                     break;
                 }
                 LogMessage::Flush => {
-                    let mut state = shared_state.write();
+                    let state = shared_state.read();
 
                     if state
                         .options
@@ -212,8 +235,10 @@ impl Logger {
                         .as_ref()
                         .map_or(false, |t| !t.is_empty())
                     {
-                        Self::process_buffered_entries(&mut state);
+                        drop(state); // Release read lock
+                        Self::process_buffered_entries(&shared_state, &buffer);
 
+                        let state = shared_state.read();
                         if let Some(transports) = &state.options.transports {
                             for (_handle, transport) in transports {
                                 let _ = transport.get_transport().flush();
@@ -230,8 +255,23 @@ impl Logger {
         }
     }
 
-    fn process_buffered_entries(state: &mut SharedState) {
-        while let Some(entry) = state.buffer.pop_front() {
+    fn process_buffered_entries(
+        shared_state: &Arc<RwLock<SharedState>>,
+        buffer: &Arc<Mutex<VecDeque<Arc<LogInfo>>>>,
+    ) {
+        // Drain all buffered entries at once
+        let entries = {
+            let mut buf = buffer.lock().unwrap();
+            buf.drain(..).collect::<Vec<_>>()
+        };
+
+        if entries.is_empty() {
+            return;
+        }
+
+        // Process with read lock (allows parallelism)
+        let state = shared_state.read();
+        for entry in entries {
             Self::process_entry(&entry, &state);
         }
     }
@@ -287,12 +327,12 @@ impl Logger {
 
     pub fn query(&self, options: &LogQuery) -> Result<Vec<LogInfo>, String> {
         let state = self.shared_state.read();
+        let buffer = self.buffer.lock().unwrap();
         let mut results = Vec::new();
 
         // First, query the buffered entries
         results.extend(
-            state
-                .buffer
+            buffer
                 .iter()
                 .filter(|entry| options.matches(&***entry))
                 .map(|arc| (**arc).clone())
@@ -480,8 +520,10 @@ impl Logger {
         }
 
         Self::refresh_effective_levels(&mut state);
+        drop(state); // Release write lock
+
         // Process buffered entries with new configuration
-        Self::process_buffered_entries(&mut state);
+        Self::process_buffered_entries(&self.shared_state, &self.buffer);
     }
 
     /// Start building a transport configuration. Use the builder to configure
@@ -952,8 +994,8 @@ mod tests {
 
         logger.flush().unwrap();
 
-        let state = logger.shared_state.read();
-        assert_eq!(state.buffer.len(), 1);
+        let buffer = logger.buffer.lock().unwrap();
+        assert_eq!(buffer.len(), 1);
     }
 
     #[test]
@@ -964,9 +1006,9 @@ mod tests {
         logger.log(LogInfo::new("info", "Buffered"));
 
         logger.flush().unwrap();
-        let state = logger.shared_state.read();
-        assert_eq!(state.buffer.len(), 1);
-        drop(state);
+        let buffer = logger.buffer.lock().unwrap();
+        assert_eq!(buffer.len(), 1);
+        drop(buffer);
 
         // Add transport
         let transport = TestTransport::new();
