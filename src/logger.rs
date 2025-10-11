@@ -571,10 +571,6 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-
         // Convert log::Record to LogInfo
         let mut meta = std::collections::HashMap::new();
         // Add timestamp
