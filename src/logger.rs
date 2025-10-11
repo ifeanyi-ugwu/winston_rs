@@ -68,7 +68,7 @@ impl<'a> TransportBuilder<'a> {
 
 #[derive(Debug)]
 pub enum LogMessage {
-    Entry(LogInfo),
+    Entry(Arc<LogInfo>),
     Configure(LoggerOptions),
     Shutdown,
     Flush,
@@ -77,7 +77,7 @@ pub enum LogMessage {
 #[derive(Debug)]
 pub(crate) struct SharedState {
     pub(crate) options: LoggerOptions,
-    buffer: VecDeque<LogInfo>,
+    buffer: VecDeque<Arc<LogInfo>>,
     // Cache the minimum severity needed for any transport to accept a log
     min_required_severity: Option<u8>,
 }
@@ -171,7 +171,7 @@ impl Logger {
                         .as_ref()
                         .map_or(true, |t| t.is_empty())
                     {
-                        state.buffer.push_back(entry.clone());
+                        state.buffer.push_back(Arc::clone(&entry));
                         eprintln!("[winston] Attempt to write logs with no transports, which can increase memory usage: {}", entry.message);
                     } else {
                         Self::process_buffered_entries(&mut state);
@@ -236,7 +236,7 @@ impl Logger {
         }
     }
 
-    fn process_entry(entry: &LogInfo, state: &SharedState) {
+    fn process_entry(entry: &Arc<LogInfo>, state: &SharedState) {
         if entry.message.is_empty() && entry.meta.is_empty() {
             return;
         }
@@ -262,10 +262,10 @@ impl Logger {
                 }
 
                 let formatted_message = match (transport.get_format(), &options.format) {
-                    (Some(tf), Some(_lf)) => tf.transform(entry.clone()),
-                    (Some(tf), None) => tf.transform(entry.clone()),
-                    (None, Some(lf)) => lf.transform(entry.clone()),
-                    (None, None) => Some(entry.clone()),
+                    (Some(tf), Some(_lf)) => tf.transform((**entry).clone()),
+                    (Some(tf), None) => tf.transform((**entry).clone()),
+                    (None, Some(lf)) => lf.transform((**entry).clone()),
+                    (None, None) => Some((**entry).clone()),
                 };
                 if let Some(msg) = formatted_message {
                     transport.get_transport().log(msg);
@@ -294,8 +294,9 @@ impl Logger {
             state
                 .buffer
                 .iter()
-                .filter(|entry| options.matches(entry))
-                .cloned(),
+                .filter(|entry| options.matches(&***entry))
+                .map(|arc| (**arc).clone())
+                .collect::<Vec<_>>(),
         );
 
         // Then, query each transport
@@ -312,6 +313,7 @@ impl Logger {
     }
 
     pub fn log(&self, entry: LogInfo) {
+        let entry = Arc::new(entry);
         match self.sender.try_send(LogMessage::Entry(entry)) {
             Ok(_) => {}
             Err(TrySendError::Full(LogMessage::Entry(entry))) => {
@@ -336,11 +338,12 @@ impl Logger {
     }
 
     pub fn logi(&self, entry: LogInfo) {
+        let entry = Arc::new(entry);
         let _ = self.sender.send(LogMessage::Entry(entry));
     }
 
     /// Handles backpressure strategies when the channel is full.
-    fn handle_full_channel(&self, entry: LogInfo) {
+    fn handle_full_channel(&self, entry: Arc<LogInfo>) {
         let strategy = {
             let state = self.shared_state.read();
             state
@@ -368,7 +371,7 @@ impl Logger {
     }
 
     /// Drops the oldest log message from the channel and attempts to send the new one.
-    fn drop_oldest_and_retry(&self, entry: LogInfo) {
+    fn drop_oldest_and_retry(&self, entry: Arc<LogInfo>) {
         // Try to remove the oldest message from the channel using the shared receiver
         if let Ok(oldest) = self.receiver.try_recv() {
             eprintln!(
